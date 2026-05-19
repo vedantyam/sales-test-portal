@@ -20,25 +20,12 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   user: null,
-  setAuth: (accessToken, user) => {
-    set({ accessToken, user })
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('auth_user', JSON.stringify(user))
-    }
-  },
-  clearAuth: () => {
-    set({ accessToken: null, user: null })
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('auth_user')
-    }
-  },
+  setAuth: (accessToken, user) => set({ accessToken, user }),
+  clearAuth: () => set({ accessToken: null, user: null }),
 }))
 
 export function getStoredUser(): AuthUser | null {
-  if (typeof window === 'undefined') return null
-  const raw = sessionStorage.getItem('auth_user')
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
+  return null
 }
 
 export function parseJWT(token: string): Record<string, unknown> {
