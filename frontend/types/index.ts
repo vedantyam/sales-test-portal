@@ -5,6 +5,7 @@ export interface Employee {
   department: string
   is_active: boolean
   created_at: string
+  access_key_plain?: string | null
 }
 
 export interface QuestionOption {

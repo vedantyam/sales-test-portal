@@ -7,7 +7,6 @@ import { useAuthStore, getStoredUser } from '../../store/authStore'
 import { adminApi } from '../../lib/api'
 
 const NAV_ITEMS = [
-  { href: '/admin/dashboard', label: 'Dashboard' },
   { href: '/admin/employees', label: 'Employees' },
   { href: '/admin/tests', label: 'Tests' },
   { href: '/admin/results', label: 'Results' },
@@ -23,7 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (isLoginPage) return
-    if (!accessToken) {
+    if (!accessToken && !user) {
       const stored = getStoredUser()
       if (stored?.role === 'admin') {
         setAuth('', stored)

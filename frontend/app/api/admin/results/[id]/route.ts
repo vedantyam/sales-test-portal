@@ -34,18 +34,27 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const answers: any[] = []
   for (const section of sections) {
     for (const q of section.questions) {
-      const userAnswer = answerBuffer[q.id] || null
+      const rawAnswer = answerBuffer[q.id] || null
+      let displayAnswer: string | null = rawAnswer
       let correctAnswerText: string | undefined
-      if (q.type === 'mcq' && q.correct_answer && q.options) {
-        const opt = q.options.find((o: any) => o.id === q.correct_answer)
-        correctAnswerText = opt?.text
+
+      if (q.type === 'mcq' && q.options) {
+        if (rawAnswer) {
+          const givenOpt = q.options.find((o: any) => o.id === rawAnswer)
+          if (givenOpt) displayAnswer = givenOpt.text
+        }
+        if (q.correct_answer) {
+          const correctOpt = q.options.find((o: any) => o.id === q.correct_answer)
+          correctAnswerText = correctOpt?.text
+        }
       }
+
       answers.push({
         question_id: q.id,
         question_text: q.text,
         question_type: q.type,
         marks: q.marks,
-        answer: userAnswer,
+        answer: displayAnswer,
         correct_answer: correctAnswerText,
         explanation: q.explanation || undefined,
         awarded_marks: q.type === 'subjective' ? (subjectiveAnswers[q.id] ?? null) : null,

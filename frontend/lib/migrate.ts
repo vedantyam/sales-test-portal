@@ -118,6 +118,9 @@ const statements = [
   `ALTER TABLE results ADD COLUMN IF NOT EXISTS released_at TIMESTAMPTZ`,
   `ALTER TABLE results ADD COLUMN IF NOT EXISTS released_by UUID REFERENCES admins(id)`,
 
+  /* Plain-text access key stored for internal HR tool — admin-only retrieval */
+  `ALTER TABLE employees ADD COLUMN IF NOT EXISTS access_key_plain TEXT`,
+
   `CREATE INDEX IF NOT EXISTS idx_employees_prefix ON employees(access_key_prefix)`,
   `CREATE INDEX IF NOT EXISTS idx_assignments_employee ON test_assignments(employee_id, status)`,
   `CREATE INDEX IF NOT EXISTS idx_assignments_test ON test_assignments(test_id)`,

@@ -17,15 +17,37 @@ interface AuthState {
   clearAuth: () => void
 }
 
+const STORAGE_KEY = 'sp_auth_user'
+
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   user: null,
-  setAuth: (accessToken, user) => set({ accessToken, user }),
-  clearAuth: () => set({ accessToken: null, user: null }),
+  setAuth: (accessToken, user) => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user))
+    }
+    set({ accessToken, user })
+  },
+  clearAuth: () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(STORAGE_KEY)
+    }
+    set({ accessToken: null, user: null })
+  },
 }))
 
+export function hydrate(): AuthUser | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as AuthUser) : null
+  } catch {
+    return null
+  }
+}
+
 export function getStoredUser(): AuthUser | null {
-  return null
+  return hydrate()
 }
 
 export function parseJWT(token: string): Record<string, unknown> {

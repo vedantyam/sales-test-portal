@@ -40,18 +40,18 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white p-8 rounded-lg border border-gray-200 w-full max-w-sm">
         <h1 className="text-2xl font-semibold text-gray-900 mb-1">Sales Portal</h1>
-        <p className="text-sm text-gray-500 mb-6">Enter your access key to continue</p>
+        <p className="text-sm text-gray-500 mb-6">Sign in to access your assessments</p>
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Access Key
+              Login Code
             </label>
             <input
               type="text"
               value={key}
               onChange={(e) => setKey(e.target.value.toUpperCase())}
-              placeholder="e.g. ABCD1234EFGH"
+              placeholder="Enter your login code"
               autoFocus
               autoComplete="off"
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-gray-900"
@@ -67,12 +67,12 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-gray-900 text-white py-2 rounded-md text-sm font-medium mt-4 disabled:opacity-50"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Signing in...' : 'Continue'}
           </button>
         </form>
 
         <p className="text-xs text-gray-400 text-center mt-4">
-          Contact HR if you haven&apos;t received your access key.
+          Contact HR if you need your login code.
         </p>
       </div>
     </div>

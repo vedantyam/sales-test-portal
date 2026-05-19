@@ -28,7 +28,7 @@ export default function AdminLoginPage() {
         email: payload.email as string,
         role: 'admin',
       })
-      router.push('/admin/dashboard')
+      router.push('/admin/employees')
     } catch {
       setError('Invalid email or password.')
     } finally {

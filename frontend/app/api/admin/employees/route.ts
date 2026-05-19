@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { rows } = await db.query(
-    `SELECT id, name, email, department, joining_date, is_active, created_at
+    `SELECT id, name, email, department, joining_date, is_active, created_at, access_key_plain
      FROM employees ${where}
      ORDER BY created_at DESC LIMIT $${i++} OFFSET $${i++}`,
     [...params, limit, offset]
@@ -67,10 +67,10 @@ export async function POST(request: NextRequest) {
   const prefix = getKeyPrefix(key)
 
   const { rows } = await db.query(
-    `INSERT INTO employees (name, email, department, joining_date, access_key_hash, access_key_prefix, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
-     RETURNING id, name, email, department, joining_date, is_active, created_at`,
-    [name.trim(), email?.trim() || null, department.trim(), joining_date || null, hash, prefix, adminId]
+    `INSERT INTO employees (name, email, department, joining_date, access_key_hash, access_key_prefix, access_key_plain, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     RETURNING id, name, email, department, joining_date, is_active, created_at, access_key_plain`,
+    [name.trim(), email?.trim() || null, department.trim(), joining_date || null, hash, prefix, key, adminId]
   )
 
   if (email?.trim()) {

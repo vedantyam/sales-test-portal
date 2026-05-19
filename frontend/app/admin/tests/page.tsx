@@ -64,7 +64,10 @@ export default function TestsPage() {
       qc.invalidateQueries({ queryKey: ['tests'] })
       setNotification({ msg: 'Test deleted', type: 'success' })
     },
-    onError: () => setNotification({ msg: 'Cannot delete published test', type: 'error' }),
+    onError: (e: any) => {
+      const msg = e.response?.data?.error || 'Failed to delete test'
+      setNotification({ msg, type: 'error' })
+    },
   })
 
   const assignMutation = useMutation({
@@ -117,40 +120,23 @@ export default function TestsPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => router.push(`/admin/tests/${test.id}`)}
+                  >
+                    Edit
+                  </Button>
                   {test.status === 'draft' && (
-                    <>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => router.push(`/admin/tests/${test.id}`)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => publishMutation.mutate({ id: test.id, action: 'publish' })}
-                      >
-                        Publish
-                      </Button>
-                      <button
-                        onClick={() => {
-                          if (confirm('Delete this test?')) deleteMutation.mutate(test.id)
-                        }}
-                        className="text-xs text-red-500 hover:text-red-700"
-                      >
-                        Delete
-                      </button>
-                    </>
+                    <Button
+                      size="sm"
+                      onClick={() => publishMutation.mutate({ id: test.id, action: 'publish' })}
+                    >
+                      Publish
+                    </Button>
                   )}
                   {test.status === 'published' && (
                     <>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => router.push(`/admin/tests/${test.id}`)}
-                      >
-                        Edit
-                      </Button>
                       <Button size="sm" onClick={() => setAssignTarget(test)}>Assign</Button>
                       <Button
                         variant="secondary"
@@ -161,6 +147,16 @@ export default function TestsPage() {
                       </Button>
                     </>
                   )}
+                  <button
+                    onClick={() => {
+                      if (confirm('Delete this test? This will also delete all assignments and results.')) {
+                        deleteMutation.mutate(test.id)
+                      }
+                    }}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             ))}

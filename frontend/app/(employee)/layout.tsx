@@ -9,11 +9,9 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
   const { accessToken, user, setAuth } = useAuthStore()
 
   useEffect(() => {
-    if (!accessToken) {
+    if (!accessToken && !user) {
       const stored = getStoredUser()
       if (stored) {
-        // Token lost on page refresh — api interceptor will refresh via cookie on next request
-        // Restore user so UI doesn't flash empty
         setAuth('', stored)
       } else {
         router.replace('/login')

@@ -8,13 +8,20 @@ import { formatDate } from '../../../lib/utils'
 import Button from '../../../components/ui/Button'
 import Badge from '../../../components/ui/Badge'
 import Input from '../../../components/ui/Input'
-import Textarea from '../../../components/ui/Textarea'
 import Notification from '../../../components/ui/Notification'
 import { cn } from '../../../lib/utils'
 
 function passBadge(val: 'pass' | 'fail' | null) {
   if (!val) return <Badge variant="gray">Pending</Badge>
   return <Badge variant={val === 'pass' ? 'green' : 'red'}>{val === 'pass' ? 'Pass' : 'Fail'}</Badge>
+}
+
+interface EmployeeGroup {
+  employee_id: string
+  employee_name: string
+  employee_department: string
+  employee_email: string
+  results: ResultSummary[]
 }
 
 interface TestGroup {
@@ -29,11 +36,10 @@ interface TestGroup {
 
 export default function ResultsPage() {
   const qc = useQueryClient()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [scores, setScores] = useState<Record<string, number>>({})
-  const [hrDecision, setHrDecision] = useState<'hire' | 'reject' | 'hold' | ''>('')
-  const [hrNotes, setHrNotes] = useState('')
   const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [showRelease, setShowRelease] = useState(false)
 
@@ -60,7 +66,24 @@ export default function ResultsPage() {
     },
   })
 
-  // Group results by test for the release panel
+  // Group results by employee
+  const employeeGroups: EmployeeGroup[] = Object.values(
+    (results ?? []).reduce<Record<string, EmployeeGroup>>((acc, r) => {
+      if (!acc[r.employee_id]) {
+        acc[r.employee_id] = {
+          employee_id: r.employee_id,
+          employee_name: r.employee_name,
+          employee_department: r.employee_department,
+          employee_email: r.employee_email,
+          results: [],
+        }
+      }
+      acc[r.employee_id].results.push(r)
+      return acc
+    }, {})
+  )
+
+  // Group by test for release panel
   const testGroups: TestGroup[] = Object.values(
     (results ?? []).reduce<Record<string, TestGroup>>((acc, r) => {
       if (!acc[r.test_id]) {
@@ -85,13 +108,22 @@ export default function ResultsPage() {
     allReleased: g.results.length > 0 && g.releasedCount === g.results.length,
   }))
 
+  const filteredEmployees = employeeGroups.filter(
+    (g) =>
+      g.employee_name.toLowerCase().includes(search.toLowerCase()) ||
+      g.employee_department.toLowerCase().includes(search.toLowerCase()) ||
+      (g.employee_email ?? '').toLowerCase().includes(search.toLowerCase())
+  )
+
+  const selectedEmployee = employeeGroups.find((g) => g.employee_id === selectedEmployeeId) ?? null
+
   const { data: detail, isLoading: loadingDetail } = useQuery<ResultDetail>({
-    queryKey: ['result-detail', selectedId],
+    queryKey: ['result-detail', selectedResultId],
     queryFn: async () => {
-      const res = await adminApi.get(`/admin/results/${selectedId}`)
+      const res = await adminApi.get(`/admin/results/${selectedResultId}`)
       return res.data.result
     },
-    enabled: !!selectedId,
+    enabled: !!selectedResultId,
   })
 
   const scoreMutation = useMutation({
@@ -99,7 +131,7 @@ export default function ResultsPage() {
       await adminApi.patch(`/admin/results/${resultId}/score`, { question_id: questionId, marks })
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['result-detail', selectedId] })
+      qc.invalidateQueries({ queryKey: ['result-detail', selectedResultId] })
       setNotification({ msg: 'Score saved', type: 'success' })
     },
     onError: () => setNotification({ msg: 'Failed to save score', type: 'error' }),
@@ -111,31 +143,11 @@ export default function ResultsPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['results'] })
-      qc.invalidateQueries({ queryKey: ['result-detail', selectedId] })
+      qc.invalidateQueries({ queryKey: ['result-detail', selectedResultId] })
       setNotification({ msg: 'Result finalised and email sent', type: 'success' })
     },
     onError: () => setNotification({ msg: 'Failed to finalise', type: 'error' }),
   })
-
-  const hrMutation = useMutation({
-    mutationFn: async ({ resultId, decision, notes }: { resultId: string; decision: string; notes: string }) => {
-      await adminApi.post(`/admin/results/${resultId}/hr-decision`, { decision, notes })
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['result-detail', selectedId] })
-      setNotification({ msg: 'HR decision recorded', type: 'success' })
-      setHrDecision('')
-      setHrNotes('')
-    },
-    onError: () => setNotification({ msg: 'Failed to record decision', type: 'error' }),
-  })
-
-  const filtered = (results ?? []).filter(
-    (r) =>
-      r.employee_name.toLowerCase().includes(search.toLowerCase()) ||
-      r.test_title.toLowerCase().includes(search.toLowerCase()) ||
-      r.employee_department.toLowerCase().includes(search.toLowerCase())
-  )
 
   function handleScoreChange(questionId: string, val: string) {
     const n = parseFloat(val)
@@ -143,48 +155,44 @@ export default function ResultsPage() {
   }
 
   function saveScore(questionId: string, maxMarks: number) {
-    if (!selectedId || scores[questionId] === undefined) return
+    if (!selectedResultId || scores[questionId] === undefined) return
     const marks = Math.min(Math.max(0, scores[questionId]), maxMarks)
-    scoreMutation.mutate({ resultId: selectedId, questionId, marks })
+    scoreMutation.mutate({ resultId: selectedResultId, questionId, marks })
   }
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-8rem)]">
-      {/* Left: results table */}
-      <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 flex flex-col">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
-          <h1 className="text-base font-bold text-gray-900 flex-shrink-0">Results</h1>
-          <div className="flex items-center gap-2">
+    <div className="flex gap-4 h-[calc(100vh-8rem)]">
+      {/* Left: employee list */}
+      <div className="w-64 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-sm font-bold text-gray-900">Results</h1>
             <button
               onClick={() => setShowRelease((v) => !v)}
-              className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-2 py-1"
+              className="text-xs text-blue-600 hover:text-blue-800"
             >
-              {showRelease ? 'Hide release panel' : 'Release results'}
+              {showRelease ? 'Hide' : 'Release'}
             </button>
-            <Input
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="max-w-xs"
-            />
           </div>
+          <Input
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
 
         {showRelease && (
-          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50 space-y-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Release results by test</p>
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Release by test</p>
             {testGroups.length === 0 && (
               <p className="text-xs text-gray-400">No results yet.</p>
             )}
             {testGroups.map((g) => (
-              <div key={g.testId} className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{g.testTitle}</p>
-                  <p className="text-xs text-gray-500">
-                    {g.finalisedCount}/{g.results.length} finalised
-                    {g.releasedCount > 0 && ` · ${g.releasedCount} released`}
-                  </p>
-                </div>
+              <div key={g.testId} className="bg-white border border-gray-200 rounded-lg px-3 py-2">
+                <p className="text-xs font-medium text-gray-900 truncate">{g.testTitle}</p>
+                <p className="text-xs text-gray-500">
+                  {g.finalisedCount}/{g.results.length} finalised
+                </p>
                 {g.allReleased ? (
                   <span className="text-xs text-green-600 font-medium">All released</span>
                 ) : (
@@ -192,6 +200,7 @@ export default function ResultsPage() {
                     size="sm"
                     disabled={!g.allFinalised || releaseMutation.isPending}
                     onClick={() => releaseMutation.mutate(g.testId)}
+                    className="mt-1 w-full text-xs"
                     title={!g.allFinalised ? 'Finalise all scores first' : undefined}
                   >
                     Release
@@ -204,48 +213,82 @@ export default function ResultsPage() {
 
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading...</div>
-        ) : filtered.length === 0 ? (
+        ) : filteredEmployees.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">No results</div>
         ) : (
           <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-            {filtered.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => setSelectedId(r.id)}
-                className={cn(
-                  'w-full text-left px-5 py-3 hover:bg-gray-50 transition-colors',
-                  selectedId === r.id && 'bg-blue-50'
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-gray-900 truncate">{r.employee_name}</p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {r.test_title} · {r.employee_department}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{formatDate(r.submitted_at)}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    {passBadge(r.pass_fail)}
-                    {r.is_finalised ? (
-                      <span className="text-xs text-green-600 font-medium">Finalised</span>
-                    ) : (
-                      <span className="text-xs text-amber-600">Pending review</span>
-                    )}
-                    {r.total_score !== null && (
-                      <span className="text-xs text-gray-500">{r.total_score}/{r.max_score}</span>
+            {filteredEmployees.map((g) => {
+              const pending = g.results.filter((r) => !r.is_finalised).length
+              return (
+                <button
+                  key={g.employee_id}
+                  onClick={() => {
+                    setSelectedEmployeeId(g.employee_id)
+                    setSelectedResultId(null)
+                  }}
+                  className={cn(
+                    'w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors',
+                    selectedEmployeeId === g.employee_id && 'bg-blue-50'
+                  )}
+                >
+                  <p className="font-medium text-sm text-gray-900">{g.employee_name}</p>
+                  <p className="text-xs text-gray-500">{g.employee_department}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-gray-400">{g.results.length} test{g.results.length !== 1 ? 's' : ''}</span>
+                    {pending > 0 && (
+                      <span className="text-xs text-amber-600">{pending} pending</span>
                     )}
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* Right: detail panel */}
-      <div className="w-[480px] flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden">
-        {!selectedId ? (
+      {/* Middle: employee's results */}
+      <div className="w-72 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col">
+        {!selectedEmployee ? (
+          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm px-4 text-center">
+            Select an employee to view their results
+          </div>
+        ) : (
+          <>
+            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <p className="font-semibold text-sm text-gray-900">{selectedEmployee.employee_name}</p>
+              <p className="text-xs text-gray-500">{selectedEmployee.employee_department}</p>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+              {selectedEmployee.results.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedResultId(r.id)}
+                  className={cn(
+                    'w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors',
+                    selectedResultId === r.id && 'bg-blue-50'
+                  )}
+                >
+                  <p className="font-medium text-sm text-gray-900 truncate">{r.test_title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{formatDate(r.submitted_at)}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    {passBadge(r.pass_fail)}
+                    {r.total_score !== null && (
+                      <span className="text-xs text-gray-500">{r.total_score}/{r.max_score}</span>
+                    )}
+                    {!r.is_finalised && (
+                      <span className="text-xs text-amber-600">Pending</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Right: result detail */}
+      <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden">
+        {!selectedResultId ? (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
             Select a result to review
           </div>
@@ -254,9 +297,9 @@ export default function ResultsPage() {
         ) : detail ? (
           <>
             <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0">
-              <h2 className="font-semibold text-gray-900">{detail.employee_name}</h2>
+              <h2 className="font-semibold text-gray-900">{detail.test_title}</h2>
               <p className="text-xs text-gray-500">
-                {detail.test_title} · {detail.employee_department} · {detail.employee_email}
+                {detail.employee_name} · {detail.employee_department} · {detail.employee_email}
               </p>
               <div className="flex items-center gap-4 mt-2">
                 {passBadge(detail.pass_fail)}
@@ -269,7 +312,6 @@ export default function ResultsPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {/* Answers */}
               {detail.answers.map((ans, i) => (
                 <div key={ans.question_id} className="border border-gray-200 rounded-lg p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
@@ -327,72 +369,6 @@ export default function ResultsPage() {
                   )}
                 </div>
               ))}
-
-              {/* HR decisions history */}
-              {detail.hr_decisions.length > 0 && (
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">HR Decisions</p>
-                  <div className="space-y-2">
-                    {detail.hr_decisions.map((d) => (
-                      <div key={d.id} className="text-sm">
-                        <span className={cn(
-                          'font-medium capitalize',
-                          d.decision === 'hire' && 'text-green-700',
-                          d.decision === 'reject' && 'text-red-700',
-                          d.decision === 'hold' && 'text-amber-700',
-                        )}>
-                          {d.decision}
-                        </span>
-                        {d.notes && <span className="text-gray-500 ml-2">— {d.notes}</span>}
-                        <span className="text-gray-400 text-xs ml-2">{formatDate(d.created_at)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* HR decision form */}
-              {detail.is_finalised && (
-                <div className="border border-gray-200 rounded-lg p-4 space-y-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Record HR Decision</p>
-                  <div className="flex gap-2">
-                    {(['hire', 'reject', 'hold'] as const).map((d) => (
-                      <button
-                        key={d}
-                        onClick={() => setHrDecision(d)}
-                        className={cn(
-                          'flex-1 py-2 rounded-lg text-sm font-medium border transition-colors capitalize',
-                          hrDecision === d
-                            ? d === 'hire'
-                              ? 'bg-green-600 text-white border-green-600'
-                              : d === 'reject'
-                              ? 'bg-red-600 text-white border-red-600'
-                              : 'bg-amber-500 text-white border-amber-500'
-                            : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                        )}
-                      >
-                        {d}
-                      </button>
-                    ))}
-                  </div>
-                  <Textarea
-                    placeholder="Notes (optional)"
-                    value={hrNotes}
-                    onChange={(e) => setHrNotes(e.target.value)}
-                    rows={2}
-                  />
-                  <Button
-                    size="sm"
-                    disabled={!hrDecision}
-                    onClick={() =>
-                      hrMutation.mutate({ resultId: detail.id, decision: hrDecision, notes: hrNotes })
-                    }
-                    loading={hrMutation.isPending}
-                  >
-                    Submit Decision
-                  </Button>
-                </div>
-              )}
             </div>
 
             {!detail.is_finalised && (

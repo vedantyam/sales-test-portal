@@ -19,6 +19,14 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [keyModal, setKeyModal] = useState<{ name: string; key: string } | null>(null)
   const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  function copyKey(empId: string, key: string) {
+    navigator.clipboard.writeText(key).then(() => {
+      setCopiedId(empId)
+      setTimeout(() => setCopiedId(null), 2000)
+    })
+  }
 
   const { data: employees, isLoading } = useQuery<Employee[]>({
     queryKey: ['employees'],
@@ -59,19 +67,6 @@ export default function EmployeesPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
     onError: () => setNotification({ msg: 'Failed to update status', type: 'error' }),
-  })
-
-  const regenKeyMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await adminApi.post(`/admin/employees/${id}/regenerate-key`)
-      return res.data
-    },
-    onSuccess: (data, id) => {
-      const emp = employees?.find((e) => e.id === id)
-      if (emp) setKeyModal({ name: emp.name, key: data.access_key })
-      qc.invalidateQueries({ queryKey: ['employees'] })
-    },
-    onError: () => setNotification({ msg: 'Failed to regenerate key', type: 'error' }),
   })
 
   const filtered = (employees ?? []).filter(
@@ -117,6 +112,7 @@ export default function EmployeesPage() {
                 <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
                   <th className="text-left px-5 py-3 font-medium">Name</th>
                   <th className="text-left px-5 py-3 font-medium">Department</th>
+                  <th className="text-left px-5 py-3 font-medium">Login Code</th>
                   <th className="text-left px-5 py-3 font-medium">Status</th>
                   <th className="text-left px-5 py-3 font-medium">Created</th>
                   <th className="text-right px-5 py-3 font-medium">Actions</th>
@@ -131,6 +127,32 @@ export default function EmployeesPage() {
                     </td>
                     <td className="px-5 py-3 text-gray-600">{emp.department}</td>
                     <td className="px-5 py-3">
+                      {emp.access_key_plain ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-gray-700 bg-gray-100 rounded px-1.5 py-0.5 select-all">
+                            {emp.access_key_plain}
+                          </span>
+                          <button
+                            onClick={() => copyKey(emp.id, emp.access_key_plain!)}
+                            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                            title="Copy login code"
+                          >
+                            {copiedId === emp.id ? (
+                              <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
                       <Badge variant={emp.is_active ? 'green' : 'gray'}>
                         {emp.is_active ? 'Active' : 'Inactive'}
                       </Badge>
@@ -143,12 +165,6 @@ export default function EmployeesPage() {
                           className="text-xs text-blue-600 hover:text-blue-800"
                         >
                           Edit
-                        </button>
-                        <button
-                          onClick={() => regenKeyMutation.mutate(emp.id)}
-                          className="text-xs text-gray-500 hover:text-gray-700"
-                        >
-                          Regen Key
                         </button>
                         <button
                           onClick={() => toggleStatusMutation.mutate({ id: emp.id, active: !emp.is_active })}

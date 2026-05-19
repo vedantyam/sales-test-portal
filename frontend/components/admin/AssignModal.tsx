@@ -15,11 +15,29 @@ interface AssignModalProps {
   onAssign: (employeeIds: string[], windowStart: string, windowEnd: string) => Promise<void>
 }
 
+const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1))
+const MINUTES = ['00', '15', '30', '45']
+
+function to24h(hour: string, minute: string, period: 'AM' | 'PM'): string {
+  let h = parseInt(hour, 10)
+  if (period === 'AM' && h === 12) h = 0
+  if (period === 'PM' && h !== 12) h += 12
+  return `${String(h).padStart(2, '0')}:${minute}`
+}
+
+function buildWindowISO(date: string, hour: string, minute: string, period: 'AM' | 'PM'): string {
+  return new Date(`${date}T${to24h(hour, minute, period)}`).toISOString()
+}
+
 export default function AssignModal({ open, testTitle, employees, onClose, onAssign }: AssignModalProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [date, setDate] = useState('')
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
+  const [startHour, setStartHour] = useState('')
+  const [startMinute, setStartMinute] = useState('')
+  const [startPeriod, setStartPeriod] = useState<'AM' | 'PM'>('AM')
+  const [endHour, setEndHour] = useState('')
+  const [endMinute, setEndMinute] = useState('')
+  const [endPeriod, setEndPeriod] = useState<'AM' | 'PM'>('AM')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
@@ -50,20 +68,29 @@ export default function AssignModal({ open, testTitle, employees, onClose, onAss
     }
   }
 
-  function buildWindowISO(d: string, t: string): string {
-    // new Date("YYYY-MM-DDTHH:MM") treats as local time → .toISOString() gives correct UTC
-    return new Date(`${d}T${t}`).toISOString()
-  }
+  const timeComplete = startHour && startMinute && endHour && endMinute
+
+  const windowPreview = date && timeComplete
+    ? (() => {
+        const start = new Date(`${date}T${to24h(startHour, startMinute, startPeriod)}`)
+        const end = new Date(`${date}T${to24h(endHour, endMinute, endPeriod)}`)
+        return `${start.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} → ${end.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
+      })()
+    : null
 
   function validate(): string {
     if (!date) return 'Please select a date'
-    if (!startTime) return 'Please select a start time'
-    if (!endTime) return 'Please select an end time'
+    if (!startHour || !startMinute) return 'Please select a start time'
+    if (!endHour || !endMinute) return 'Please select an end time'
     if (selected.size === 0) return 'Select at least one employee'
-    const start = new Date(`${date}T${startTime}`)
-    const end = new Date(`${date}T${endTime}`)
-    if (end <= start) return 'End time must be after start time'
+
+    const start = new Date(`${date}T${to24h(startHour, startMinute, startPeriod)}`)
+    const end = new Date(`${date}T${to24h(endHour, endMinute, endPeriod)}`)
+
     if (start < new Date()) return 'Start time cannot be in the past'
+    if (end <= start) return 'End time must be after start time'
+    const durationMs = end.getTime() - start.getTime()
+    if (durationMs < 30 * 60 * 1000) return 'Window must be at least 30 minutes'
     return ''
   }
 
@@ -73,13 +100,15 @@ export default function AssignModal({ open, testTitle, employees, onClose, onAss
     if (msg) { setError(msg); return }
     setLoading(true)
     try {
-      const windowStart = buildWindowISO(date, startTime)
-      const windowEnd = buildWindowISO(date, endTime)
+      const windowStart = buildWindowISO(date, startHour, startMinute, startPeriod)
+      const windowEnd = buildWindowISO(date, endHour, endMinute, endPeriod)
       await onAssign(Array.from(selected), windowStart, windowEnd)
       setSelected(new Set())
       setDate('')
-      setStartTime('')
-      setEndTime('')
+      setStartHour('')
+      setStartMinute('')
+      setEndHour('')
+      setEndMinute('')
       onClose()
     } catch (e: any) {
       setError(e.response?.data?.error || e.message || 'Failed to assign')
@@ -88,9 +117,10 @@ export default function AssignModal({ open, testTitle, employees, onClose, onAss
     }
   }
 
-  const windowPreview = date && startTime && endTime
-    ? `${new Date(`${date}T${startTime}`).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} → ${new Date(`${date}T${endTime}`).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
-    : null
+  const selectCls = 'border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white'
+  const periodCls = (active: boolean) =>
+    cn('px-3 py-2 text-sm font-medium border transition-colors rounded-lg',
+      active ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
 
   return (
     <Modal open={open} onClose={loading ? undefined : onClose} title={`Assign: ${testTitle}`} size="lg">
@@ -105,28 +135,49 @@ export default function AssignModal({ open, testTitle, employees, onClose, onAss
             onChange={(e) => setDate(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
+          <p className="text-xs text-gray-400 mt-1">The date on which the exam window opens</p>
         </div>
 
-        {/* Time window */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Start time</label>
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+        {/* Start time */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Start time</label>
+          <div className="flex items-center gap-2">
+            <select value={startHour} onChange={(e) => setStartHour(e.target.value)} className={selectCls}>
+              <option value="">HH</option>
+              {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
+            </select>
+            <span className="text-gray-400 font-medium">:</span>
+            <select value={startMinute} onChange={(e) => setStartMinute(e.target.value)} className={selectCls}>
+              <option value="">MM</option>
+              {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <div className="flex rounded-lg overflow-hidden border border-gray-300">
+              <button type="button" onClick={() => setStartPeriod('AM')} className={periodCls(startPeriod === 'AM')}>AM</button>
+              <button type="button" onClick={() => setStartPeriod('PM')} className={periodCls(startPeriod === 'PM')}>PM</button>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End time</label>
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+          <p className="text-xs text-gray-400 mt-1">When the exam window opens for employees</p>
+        </div>
+
+        {/* End time */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">End time</label>
+          <div className="flex items-center gap-2">
+            <select value={endHour} onChange={(e) => setEndHour(e.target.value)} className={selectCls}>
+              <option value="">HH</option>
+              {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
+            </select>
+            <span className="text-gray-400 font-medium">:</span>
+            <select value={endMinute} onChange={(e) => setEndMinute(e.target.value)} className={selectCls}>
+              <option value="">MM</option>
+              {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <div className="flex rounded-lg overflow-hidden border border-gray-300">
+              <button type="button" onClick={() => setEndPeriod('AM')} className={periodCls(endPeriod === 'AM')}>AM</button>
+              <button type="button" onClick={() => setEndPeriod('PM')} className={periodCls(endPeriod === 'PM')}>PM</button>
+            </div>
           </div>
+          <p className="text-xs text-gray-400 mt-1">Minimum 30-minute window required</p>
         </div>
 
         {/* Window preview */}

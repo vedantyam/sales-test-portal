@@ -90,13 +90,19 @@ export default function EmployeeForm({ open, employee, onClose, onSave }: Employ
           placeholder="john@company.com"
           disabled={!!employee}
         />
-        <Input
-          label="Department"
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          error={errors.department}
-          placeholder="Sales"
-        />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+          <select
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white"
+          >
+            <option value="">Select department</option>
+            <option value="Sales">Sales</option>
+            <option value="Support">Support</option>
+          </select>
+          {errors.department && <p className="text-xs text-red-600 mt-1">{errors.department}</p>}
+        </div>
 
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={loading}>

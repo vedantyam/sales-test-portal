@@ -62,9 +62,19 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
   const { rows: existing } = await db.query('SELECT status FROM tests WHERE id=$1', [params.id])
   if (!existing[0]) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
-  if (existing[0].status !== 'draft') {
-    return NextResponse.json({ error: 'Only draft tests can be deleted.' }, { status: 403 })
+
+  const { rows: active } = await db.query(
+    `SELECT COUNT(*) FROM test_assignments WHERE test_id=$1 AND status='in_progress'`,
+    [params.id]
+  )
+  if (Number(active[0].count) > 0) {
+    return NextResponse.json({ error: 'Cannot delete: employees currently have this test in progress.' }, { status: 409 })
   }
+
+  await db.query(`DELETE FROM hr_decisions WHERE result_id IN (SELECT id FROM results WHERE test_id=$1)`, [params.id])
+  await db.query(`DELETE FROM results WHERE test_id=$1`, [params.id])
+  await db.query(`DELETE FROM test_sessions WHERE assignment_id IN (SELECT id FROM test_assignments WHERE test_id=$1)`, [params.id])
+  await db.query(`DELETE FROM test_assignments WHERE test_id=$1`, [params.id])
   await db.query('DELETE FROM tests WHERE id=$1', [params.id])
   return NextResponse.json({ deleted: true })
 }
