@@ -52,6 +52,10 @@ export interface Assignment {
   duration_minutes?: number
   section_count?: number
   total_questions?: number
+  pass_fail?: 'pass' | 'fail' | null
+  total_score?: number | null
+  is_finalised?: boolean
+  tab_switch_count?: number
 }
 
 export interface ShuffledQuestion {

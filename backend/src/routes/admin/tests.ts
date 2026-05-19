@@ -60,9 +60,6 @@ export const adminTestRoutes: FastifyPluginAsync = async (app) => {
 
     const { rows: existing } = await db.query('SELECT status FROM tests WHERE id=$1', [id])
     if (!existing[0]) return reply.status(404).send({ error: 'Not found.' })
-    if (existing[0].status === 'published') {
-      return reply.status(403).send({ error: 'Cannot edit a published test. Unpublish first.' })
-    }
 
     const normalized = normalizeSections(sections)
 
@@ -97,16 +94,10 @@ export const adminTestRoutes: FastifyPluginAsync = async (app) => {
 
   app.patch('/:id/unpublish', { preHandler: [app.requireAdmin] }, async (request, reply) => {
     const { id } = request.params as any
-    const { rows: assignRows } = await db.query(
-      `SELECT COUNT(*) FROM test_assignments WHERE test_id=$1 AND status NOT IN ('cancelled','expired')`,
-      [id]
-    )
-    if (Number(assignRows[0].count) > 0) {
-      return reply.status(403).send({ error: 'Cannot unpublish — active assignments exist.' })
-    }
     const { rows } = await db.query(
       `UPDATE tests SET status='draft', updated_at=NOW() WHERE id=$1 RETURNING id, title, status`, [id]
     )
+    if (!rows[0]) return reply.status(404).send({ error: 'Not found.' })
     return reply.send({ test: rows[0] })
   })
 

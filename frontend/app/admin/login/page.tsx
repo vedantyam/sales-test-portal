@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { api } from '../../../lib/api'
+import { adminApi } from '../../../lib/api'
 import { useAuthStore, parseJWT } from '../../../store/authStore'
 
 export default function AdminLoginPage() {
@@ -19,7 +19,7 @@ export default function AdminLoginPage() {
     if (!email.trim() || !password) { setError('Email and password required'); return }
     setLoading(true)
     try {
-      const res = await api.post('/auth/admin/login', { email: email.trim(), password })
+      const res = await adminApi.post('/auth/admin/login', { email: email.trim(), password })
       const token: string = res.data.access_token
       const payload = parseJWT(token)
       setAuth(token, {

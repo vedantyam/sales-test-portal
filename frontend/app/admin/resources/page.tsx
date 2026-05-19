@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../../../lib/api'
+import { adminApi } from '../../../lib/api'
 import { Resource } from '../../../types'
 import { formatDate } from '../../../lib/utils'
 import Button from '../../../components/ui/Button'
@@ -22,14 +22,14 @@ export default function ResourcesPage() {
   const { data: resources, isLoading } = useQuery<Resource[]>({
     queryKey: ['admin-resources'],
     queryFn: async () => {
-      const res = await api.get('/admin/resources')
+      const res = await adminApi.get('/admin/resources')
       return res.data.resources
     },
   })
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof BLANK) => {
-      await api.post('/admin/resources', data)
+      await adminApi.post('/admin/resources', data)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-resources'] })
@@ -41,7 +41,7 @@ export default function ResourcesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(`/admin/resources/${id}`)
+      await adminApi.delete(`/admin/resources/${id}`)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-resources'] })

@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../../../../lib/api'
+import { adminApi } from '../../../../lib/api'
 import { Test } from '../../../../types'
 import TestBuilder from '../../../../components/admin/TestBuilder'
 import Notification from '../../../../components/ui/Notification'
@@ -41,7 +41,7 @@ export default function TestBuilderPage() {
   const { data: test, isLoading } = useQuery<Test>({
     queryKey: ['test', testId],
     queryFn: async () => {
-      const res = await api.get(`/admin/tests/${testId}`)
+      const res = await adminApi.get(`/admin/tests/${testId}`)
       return res.data.test
     },
     enabled: !isNew,
@@ -49,7 +49,7 @@ export default function TestBuilderPage() {
 
   const createMutation = useMutation({
     mutationFn: async (data: object) => {
-      const res = await api.post('/admin/tests', data)
+      const res = await adminApi.post('/admin/tests', data)
       return res.data
     },
     onSuccess: () => {
@@ -62,12 +62,12 @@ export default function TestBuilderPage() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: object) => {
-      await api.put(`/admin/tests/${testId}`, data)
+      await adminApi.put(`/admin/tests/${testId}`, data)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tests'] })
       qc.invalidateQueries({ queryKey: ['test', testId] })
-      setNotification({ msg: 'Test saved', type: 'success' })
+      setNotification({ msg: 'Test updated. Existing assignments will use the updated content.', type: 'success' })
       setTimeout(() => router.push('/admin/tests'), 800)
     },
     onError: () => setNotification({ msg: 'Failed to save test', type: 'error' }),
@@ -79,17 +79,6 @@ export default function TestBuilderPage() {
 
   if (!isNew && !test) {
     return <div className="text-center py-16 text-gray-400 text-sm">Test not found.</div>
-  }
-
-  if (!isNew && test?.status === 'published') {
-    return (
-      <div className="text-center py-16">
-        <p className="text-gray-600 mb-4">Published tests cannot be edited.</p>
-        <button onClick={() => router.back()} className="text-blue-600 text-sm hover:underline">
-          Go back
-        </button>
-      </div>
-    )
   }
 
   return (

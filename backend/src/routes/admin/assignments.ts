@@ -20,23 +20,28 @@ export const adminAssignmentRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const created = []
-    const skipped = []
+    let skipped = 0
 
     for (const empId of employee_ids) {
-      try {
-        const { rows } = await db.query(
-          `INSERT INTO test_assignments (employee_id, test_id, window_start, window_end, assigned_by)
-           VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-          [empId, test_id, window_start, window_end, adminId]
-        )
-        created.push(rows[0])
-      } catch (e: any) {
-        if (e.code === '23505') skipped.push(empId)
-        else throw e
-      }
+      const { rows } = await db.query(
+        `INSERT INTO test_assignments (employee_id, test_id, window_start, window_end, assigned_by, status)
+         VALUES ($1,$2,$3,$4,$5,'pending')
+         ON CONFLICT (employee_id, test_id) DO UPDATE SET
+           window_start = EXCLUDED.window_start,
+           window_end = EXCLUDED.window_end,
+           assigned_by = EXCLUDED.assigned_by,
+           status = CASE
+             WHEN test_assignments.status IN ('submitted','auto_submitted') THEN test_assignments.status
+             ELSE 'pending'
+           END
+         RETURNING *, (xmax = 0) as inserted`,
+        [empId, test_id, window_start, window_end, adminId]
+      )
+      if (rows[0].inserted) created.push(rows[0])
+      else skipped++
     }
 
-    return reply.status(201).send({ created, skipped })
+    return reply.status(201).send({ created: created.length, skipped })
   })
 
   app.get('/', { preHandler: [app.requireAdmin] }, async (request, reply) => {

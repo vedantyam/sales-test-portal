@@ -152,26 +152,43 @@ export const employeeExamRoutes: FastifyPluginAsync = async (app) => {
     const { answers } = request.body as { answers: Record<string, string> }
     const employeeId = request.user.sub
 
-    const { rows } = await db.query(
-      `SELECT ta.status, ta.window_end, ta.test_id
-       FROM test_assignments ta WHERE ta.id=$1 AND ta.employee_id=$2`,
-      [assignmentId, employeeId]
-    )
+    const client = await db.connect()
+    try {
+      await client.query('BEGIN')
 
-    if (!rows[0]) return reply.status(404).send({ error: 'Not found.' })
-    if (['submitted', 'auto_submitted'].includes(rows[0].status)) {
-      return reply.status(403).send({ error: 'Already submitted.' })
+      const { rows } = await client.query(
+        `SELECT ta.status, ta.window_end, ta.test_id
+         FROM test_assignments ta WHERE ta.id=$1 AND ta.employee_id=$2 FOR UPDATE`,
+        [assignmentId, employeeId]
+      )
+
+      if (!rows[0]) {
+        await client.query('ROLLBACK')
+        return reply.status(404).send({ error: 'Not found.' })
+      }
+      if (['submitted', 'auto_submitted'].includes(rows[0].status)) {
+        await client.query('ROLLBACK')
+        return reply.status(403).send({ error: 'Already submitted.' })
+      }
+
+      if (new Date() > new Date(rows[0].window_end)) {
+        await client.query('ROLLBACK')
+        await submitExam(assignmentId, rows[0].test_id, employeeId, true)
+        return reply.status(403).send({ error: 'Time expired. Auto-submitted.' })
+      }
+
+      await client.query(
+        `UPDATE test_sessions SET answer_buffer=$1 WHERE assignment_id=$2`,
+        [JSON.stringify(answers), assignmentId]
+      )
+
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
     }
-
-    if (new Date() > new Date(rows[0].window_end)) {
-      await submitExam(assignmentId, rows[0].test_id, employeeId, true)
-      return reply.status(403).send({ error: 'Time expired. Auto-submitted.' })
-    }
-
-    await db.query(
-      `UPDATE test_sessions SET answer_buffer=$1 WHERE assignment_id=$2`,
-      [JSON.stringify(answers), assignmentId]
-    )
 
     return reply.send({ saved: true, saved_at: new Date().toISOString() })
   })

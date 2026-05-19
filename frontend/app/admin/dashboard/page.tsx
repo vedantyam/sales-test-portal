@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../../lib/api'
+import { adminApi } from '../../../lib/api'
 import { DashboardStats } from '../../../types'
 import { formatDate } from '../../../lib/utils'
 
@@ -19,7 +19,7 @@ export default function AdminDashboardPage() {
   const { data, isLoading } = useQuery<DashboardStats>({
     queryKey: ['admin-dashboard'],
     queryFn: async () => {
-      const res = await api.get('/admin/dashboard')
+      const res = await adminApi.get('/admin/dashboard')
       return res.data
     },
     refetchInterval: 30_000,

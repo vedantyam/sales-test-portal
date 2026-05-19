@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../../../lib/api'
+import { adminApi } from '../../../lib/api'
 import { ResultSummary, ResultDetail } from '../../../types'
 import { formatDate } from '../../../lib/utils'
 import Button from '../../../components/ui/Button'
@@ -29,7 +29,7 @@ export default function ResultsPage() {
   const { data: results, isLoading } = useQuery<ResultSummary[]>({
     queryKey: ['results'],
     queryFn: async () => {
-      const res = await api.get('/admin/results')
+      const res = await adminApi.get('/admin/results')
       return res.data.results
     },
   })
@@ -37,7 +37,7 @@ export default function ResultsPage() {
   const { data: detail, isLoading: loadingDetail } = useQuery<ResultDetail>({
     queryKey: ['result-detail', selectedId],
     queryFn: async () => {
-      const res = await api.get(`/admin/results/${selectedId}`)
+      const res = await adminApi.get(`/admin/results/${selectedId}`)
       return res.data.result
     },
     enabled: !!selectedId,
@@ -45,7 +45,7 @@ export default function ResultsPage() {
 
   const scoreMutation = useMutation({
     mutationFn: async ({ resultId, questionId, marks }: { resultId: string; questionId: string; marks: number }) => {
-      await api.patch(`/admin/results/${resultId}/score`, { question_id: questionId, marks })
+      await adminApi.patch(`/admin/results/${resultId}/score`, { question_id: questionId, marks })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['result-detail', selectedId] })
@@ -56,7 +56,7 @@ export default function ResultsPage() {
 
   const finaliseMutation = useMutation({
     mutationFn: async (resultId: string) => {
-      await api.post(`/admin/results/${resultId}/finalise`)
+      await adminApi.post(`/admin/results/${resultId}/finalise`)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['results'] })
@@ -68,7 +68,7 @@ export default function ResultsPage() {
 
   const hrMutation = useMutation({
     mutationFn: async ({ resultId, decision, notes }: { resultId: string; decision: string; notes: string }) => {
-      await api.post(`/admin/results/${resultId}/hr-decision`, { decision, notes })
+      await adminApi.post(`/admin/results/${resultId}/hr-decision`, { decision, notes })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['result-detail', selectedId] })

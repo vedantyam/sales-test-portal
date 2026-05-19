@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuthStore, getStoredUser } from '../../store/authStore'
-import { api } from '../../lib/api'
+import { adminApi } from '../../lib/api'
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard' },
@@ -36,7 +36,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [accessToken, user, isLoginPage, router, setAuth])
 
   function handleLogout() {
-    api.post('/auth/logout').catch(() => {})
+    adminApi.post('/auth/logout').catch(() => {})
     clearAuth()
     router.push('/admin/login')
   }

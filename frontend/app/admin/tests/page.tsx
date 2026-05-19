@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { api } from '../../../lib/api'
+import { adminApi } from '../../../lib/api'
 import { Employee } from '../../../types'
 import { formatDate } from '../../../lib/utils'
 import Button from '../../../components/ui/Button'
@@ -32,7 +32,7 @@ export default function TestsPage() {
   const { data: tests, isLoading } = useQuery<TestListItem[]>({
     queryKey: ['tests'],
     queryFn: async () => {
-      const res = await api.get('/admin/tests')
+      const res = await adminApi.get('/admin/tests')
       return res.data.tests
     },
   })
@@ -40,14 +40,14 @@ export default function TestsPage() {
   const { data: employees } = useQuery<Employee[]>({
     queryKey: ['employees'],
     queryFn: async () => {
-      const res = await api.get('/admin/employees')
+      const res = await adminApi.get('/admin/employees')
       return res.data.employees
     },
   })
 
   const publishMutation = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: 'publish' | 'unpublish' }) => {
-      await api.patch(`/admin/tests/${id}/${action}`)
+      await adminApi.patch(`/admin/tests/${id}/${action}`)
     },
     onSuccess: (_, { action }) => {
       qc.invalidateQueries({ queryKey: ['tests'] })
@@ -58,7 +58,7 @@ export default function TestsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(`/admin/tests/${id}`)
+      await adminApi.delete(`/admin/tests/${id}`)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tests'] })
@@ -71,7 +71,7 @@ export default function TestsPage() {
     mutationFn: async ({
       testId, employeeIds, windowStart, windowEnd,
     }: { testId: string; employeeIds: string[]; windowStart: string; windowEnd: string }) => {
-      const res = await api.post('/admin/assignments', {
+      const res = await adminApi.post('/admin/assignments', {
         test_id: testId,
         employee_ids: employeeIds,
         window_start: windowStart,
@@ -144,6 +144,13 @@ export default function TestsPage() {
                   )}
                   {test.status === 'published' && (
                     <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => router.push(`/admin/tests/${test.id}`)}
+                      >
+                        Edit
+                      </Button>
                       <Button size="sm" onClick={() => setAssignTarget(test)}>Assign</Button>
                       <Button
                         variant="secondary"
