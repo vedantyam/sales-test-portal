@@ -4,8 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '../../../lib/api'
 import { useAuthStore, parseJWT } from '../../../store/authStore'
-import Input from '../../../components/ui/Input'
-import Button from '../../../components/ui/Button'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -39,42 +37,41 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Sales Assessment Portal</h1>
-          <p className="text-sm text-gray-500 mt-1">Enter your access key to continue</p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="bg-white p-8 rounded-lg border border-gray-200 w-full max-w-sm">
+        <h1 className="text-2xl font-semibold text-gray-900 mb-1">Sales Portal</h1>
+        <p className="text-sm text-gray-500 mb-6">Enter your access key to continue</p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Access Key"
-            type="text"
-            value={key}
-            onChange={(e) => setKey(e.target.value.toUpperCase())}
-            placeholder="e.g. ABCD1234EFGH"
-            autoFocus
-            autoComplete="off"
-            className="font-mono tracking-widest"
-          />
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Access Key
+            </label>
+            <input
+              type="text"
+              value={key}
+              onChange={(e) => setKey(e.target.value.toUpperCase())}
+              placeholder="e.g. ABCD1234EFGH"
+              autoFocus
+              autoComplete="off"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-gray-900"
+            />
+          </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
-              {error}
-            </div>
+            <p className="text-sm text-red-600 mb-3">{error}</p>
           )}
 
-          <Button type="submit" className="w-full" size="lg" loading={loading}>
-            Sign In
-          </Button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gray-900 text-white py-2 rounded-md text-sm font-medium mt-4 disabled:opacity-50"
+          >
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-gray-400">
+        <p className="text-xs text-gray-400 text-center mt-4">
           Contact HR if you haven&apos;t received your access key.
         </p>
       </div>
