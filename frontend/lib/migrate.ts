@@ -144,6 +144,8 @@ async function doMigrations(): Promise<void> {
   }
 }
 
+export { doMigrations as runMigrations }
+
 let migrationPromise: Promise<void> | null = null
 
 export function ensureMigrated(): Promise<void> {
