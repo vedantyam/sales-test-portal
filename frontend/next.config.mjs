@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['pg', 'bcrypt', 'nodemailer'],
+    serverComponentsExternalPackages: ['pg', 'bcrypt', 'jsonwebtoken', 'nodemailer'],
   },
 }
 
