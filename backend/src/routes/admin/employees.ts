@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify'
 import { db } from '../../db/client'
-import { generateAccessKey, getKeyPrefix, hashAccessKey, encryptKey, decryptKey } from '../../services/accessKey'
+import { generateAccessKey, getKeyPrefix, hashAccessKey } from '../../services/accessKey'
 import { enqueueEmail } from '../../services/queue'
 import { logAudit } from '../../utils/audit'
 
@@ -41,13 +41,12 @@ export const adminEmployeeRoutes: FastifyPluginAsync = async (app) => {
     const key = generateAccessKey()
     const hash = await hashAccessKey(key)
     const prefix = getKeyPrefix(key)
-    const encrypted = encryptKey(key)
 
     const { rows } = await db.query(
-      `INSERT INTO employees (name, email, department, joining_date, access_key_hash, access_key_prefix, access_key_encrypted, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO employees (name, email, department, joining_date, access_key_hash, access_key_prefix, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        RETURNING id, name, email, department, joining_date, is_active, created_at`,
-      [name.trim(), email?.trim() || null, department.trim(), joining_date || null, hash, prefix, encrypted, adminId]
+      [name.trim(), email?.trim() || null, department.trim(), joining_date || null, hash, prefix, adminId]
     )
 
     if (email?.trim()) {
@@ -94,11 +93,10 @@ export const adminEmployeeRoutes: FastifyPluginAsync = async (app) => {
     const key = generateAccessKey()
     const hash = await hashAccessKey(key)
     const prefix = getKeyPrefix(key)
-    const encrypted = encryptKey(key)
 
     const { rows } = await db.query(
-      `UPDATE employees SET access_key_hash=$1, access_key_prefix=$2, access_key_encrypted=$3 WHERE id=$4 RETURNING id, name, email`,
-      [hash, prefix, encrypted, id]
+      `UPDATE employees SET access_key_hash=$1, access_key_prefix=$2 WHERE id=$3 RETURNING id, name, email`,
+      [hash, prefix, id]
     )
 
     if (!rows[0]) return reply.status(404).send({ error: 'Employee not found.' })
@@ -117,32 +115,6 @@ export const adminEmployeeRoutes: FastifyPluginAsync = async (app) => {
     })
 
     return reply.send({ employee: { id: rows[0].id, name: rows[0].name }, access_key: key })
-  })
-
-  app.get('/:id/key', { preHandler: [app.requireAdmin] }, async (request, reply) => {
-    const { id } = request.params as any
-
-    const { rows } = await db.query(
-      `SELECT access_key_encrypted FROM employees WHERE id=$1`,
-      [id]
-    )
-    if (!rows[0]) return reply.status(404).send({ error: 'Employee not found.' })
-    if (!rows[0].access_key_encrypted) {
-      return reply.status(404).send({ error: 'Key not available. Regenerate to get a new one.' })
-    }
-
-    const plainKey = decryptKey(rows[0].access_key_encrypted)
-
-    await logAudit({
-      user_id: request.user.sub,
-      user_type: 'admin',
-      action: 'access_key_revealed',
-      resource: 'employees',
-      resource_id: id,
-      ip_address: request.ip,
-    })
-
-    return reply.send({ access_key: plainKey })
   })
 
   app.patch('/:id/status', { preHandler: [app.requireAdmin] }, async (request, reply) => {
