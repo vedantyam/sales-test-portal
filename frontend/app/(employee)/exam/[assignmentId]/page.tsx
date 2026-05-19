@@ -31,6 +31,7 @@ export default function ExamPage() {
   const [showSubmitModal, setShowSubmitModal] = useState(false)
   const [tabViolations, setTabViolations] = useState(0)
   const [autoSubmitMsg, setAutoSubmitMsg] = useState('')
+  const [isOffline, setIsOffline] = useState(false)
   const tabViolationsRef = useRef(0)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -79,9 +80,10 @@ export default function ExamPage() {
 
     setRemaining(session.remaining_seconds)
 
-    // Restore server answers into store (only if store is empty)
-    if (Object.keys(answers).length === 0 && session.answers) {
-      Object.entries(session.answers).forEach(([qId, ans]) => setAnswer(qId, ans))
+    // Merge server answers with localStorage answers (localStorage wins as it's more recent)
+    if (session.answers) {
+      const merged = { ...session.answers, ...answers }
+      Object.entries(merged).forEach(([qId, ans]) => setAnswer(qId, ans))
     }
 
     // Mark first question visited
@@ -130,6 +132,21 @@ export default function ExamPage() {
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [session, isSubmitted]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Offline detection
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true)
+    const goOnline = () => {
+      setIsOffline(false)
+      api.patch(`/employee/exam/${assignmentId}/save`, { answers: answersRef.current }).catch(() => {})
+    }
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [assignmentId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => {
     clearInterval(tickRef.current!)
@@ -235,6 +252,11 @@ export default function ExamPage() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+      {isOffline && (
+        <div className="bg-red-900 text-red-100 px-4 py-2 text-sm text-center flex-shrink-0">
+          You are offline — your answers are saved locally and will sync when connection returns
+        </div>
+      )}
       <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="font-semibold text-gray-900 text-sm">{session.title}</h1>

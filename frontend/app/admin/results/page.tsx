@@ -17,6 +17,16 @@ function passBadge(val: 'pass' | 'fail' | null) {
   return <Badge variant={val === 'pass' ? 'green' : 'red'}>{val === 'pass' ? 'Pass' : 'Fail'}</Badge>
 }
 
+interface TestGroup {
+  testId: string
+  testTitle: string
+  results: ResultSummary[]
+  finalisedCount: number
+  releasedCount: number
+  allReleased: boolean
+  allFinalised: boolean
+}
+
 export default function ResultsPage() {
   const qc = useQueryClient()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -25,6 +35,7 @@ export default function ResultsPage() {
   const [hrDecision, setHrDecision] = useState<'hire' | 'reject' | 'hold' | ''>('')
   const [hrNotes, setHrNotes] = useState('')
   const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [showRelease, setShowRelease] = useState(false)
 
   const { data: results, isLoading } = useQuery<ResultSummary[]>({
     queryKey: ['results'],
@@ -33,6 +44,46 @@ export default function ResultsPage() {
       return res.data.results
     },
   })
+
+  const releaseMutation = useMutation({
+    mutationFn: async (testId: string) => {
+      const res = await adminApi.post(`/admin/results/release/${testId}`)
+      return res.data
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['results'] })
+      setNotification({ msg: `Released results for ${data.released_count} employee(s)`, type: 'success' })
+    },
+    onError: (e: any) => {
+      const msg = e.response?.data?.error || 'Failed to release results'
+      setNotification({ msg, type: 'error' })
+    },
+  })
+
+  // Group results by test for the release panel
+  const testGroups: TestGroup[] = Object.values(
+    (results ?? []).reduce<Record<string, TestGroup>>((acc, r) => {
+      if (!acc[r.test_id]) {
+        acc[r.test_id] = {
+          testId: r.test_id,
+          testTitle: r.test_title,
+          results: [],
+          finalisedCount: 0,
+          releasedCount: 0,
+          allReleased: false,
+          allFinalised: false,
+        }
+      }
+      acc[r.test_id].results.push(r)
+      if (r.is_finalised) acc[r.test_id].finalisedCount++
+      if (r.is_released) acc[r.test_id].releasedCount++
+      return acc
+    }, {})
+  ).map((g) => ({
+    ...g,
+    allFinalised: g.results.length > 0 && g.finalisedCount === g.results.length,
+    allReleased: g.results.length > 0 && g.releasedCount === g.results.length,
+  }))
 
   const { data: detail, isLoading: loadingDetail } = useQuery<ResultDetail>({
     queryKey: ['result-detail', selectedId],
@@ -103,13 +154,53 @@ export default function ResultsPage() {
       <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 flex flex-col">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
           <h1 className="text-base font-bold text-gray-900 flex-shrink-0">Results</h1>
-          <Input
-            placeholder="Search..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-xs"
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowRelease((v) => !v)}
+              className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-2 py-1"
+            >
+              {showRelease ? 'Hide release panel' : 'Release results'}
+            </button>
+            <Input
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-xs"
+            />
+          </div>
         </div>
+
+        {showRelease && (
+          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Release results by test</p>
+            {testGroups.length === 0 && (
+              <p className="text-xs text-gray-400">No results yet.</p>
+            )}
+            {testGroups.map((g) => (
+              <div key={g.testId} className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{g.testTitle}</p>
+                  <p className="text-xs text-gray-500">
+                    {g.finalisedCount}/{g.results.length} finalised
+                    {g.releasedCount > 0 && ` · ${g.releasedCount} released`}
+                  </p>
+                </div>
+                {g.allReleased ? (
+                  <span className="text-xs text-green-600 font-medium">All released</span>
+                ) : (
+                  <Button
+                    size="sm"
+                    disabled={!g.allFinalised || releaseMutation.isPending}
+                    onClick={() => releaseMutation.mutate(g.testId)}
+                    title={!g.allFinalised ? 'Finalise all scores first' : undefined}
+                  >
+                    Release
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading...</div>

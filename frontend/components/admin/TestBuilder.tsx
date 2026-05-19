@@ -135,7 +135,6 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
   const [step, setStep] = useState(1)
   const [title, setTitle] = useState(initialData?.title ?? '')
   const [description, setDescription] = useState(initialData?.description ?? '')
-  const [duration, setDuration] = useState(initialData?.duration_minutes ?? 60)
   const [sections, setSections] = useState<Section[]>(initialData?.sections ?? [newSection()])
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -237,7 +236,6 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
   function validateStep1() {
     const e: Record<string, string> = {}
     if (!title.trim()) e.title = 'Title is required'
-    if (!duration || duration < 1) e.duration = 'Duration must be at least 1 minute'
     return e
   }
 
@@ -279,7 +277,7 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
   async function handleSave() {
     setSaving(true)
     try {
-      await onSave({ title, description, duration_minutes: duration, sections })
+      await onSave({ title, description, duration_minutes: 60, sections })
     } finally {
       setSaving(false)
     }
@@ -332,14 +330,6 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             placeholder="Brief description of the test..."
-          />
-          <Input
-            label="Duration (minutes)"
-            type="number"
-            value={duration}
-            onChange={(e) => setDuration(parseInt(e.target.value) || 0)}
-            error={errors.duration}
-            min={1}
           />
           <div className="flex gap-3 pt-4">
             <Button variant="secondary" onClick={onCancel}>Cancel</Button>
@@ -526,7 +516,6 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
             <h3 className="font-semibold text-gray-900">{title}</h3>
             {description && <p className="text-sm text-gray-600">{description}</p>}
             <div className="flex gap-6 text-sm text-gray-500">
-              <span><strong className="text-gray-800">{duration}</strong> min</span>
               <span><strong className="text-gray-800">{sections.length}</strong> section{sections.length !== 1 ? 's' : ''}</span>
               <span><strong className="text-gray-800">{totalQuestions}</strong> question{totalQuestions !== 1 ? 's' : ''}</span>
               <span><strong className="text-gray-800">{totalMarks}</strong> marks</span>

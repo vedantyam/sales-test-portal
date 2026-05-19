@@ -54,7 +54,11 @@ export interface Assignment {
   total_questions?: number
   pass_fail?: 'pass' | 'fail' | null
   total_score?: number | null
+  max_score?: number | null
+  mcq_score?: number | null
+  subjective_score?: number | null
   is_finalised?: boolean
+  is_released?: boolean
   tab_switch_count?: number
 }
 
@@ -100,6 +104,7 @@ export interface ResultSummary {
   max_score: number | null
   pass_fail: 'pass' | 'fail' | null
   is_finalised: boolean
+  is_released: boolean
   submitted_at: string
   created_at: string
 }

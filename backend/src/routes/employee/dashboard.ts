@@ -17,7 +17,8 @@ export const employeeDashboardRoutes: FastifyPluginAsync = async (app) => {
               jsonb_array_length(t.sections) as section_count,
               (SELECT COALESCE(SUM(jsonb_array_length(s->'questions')), 0)
                FROM jsonb_array_elements(t.sections) s) as total_questions,
-              r.pass_fail, r.total_score, r.is_finalised,
+              r.pass_fail, r.total_score, r.max_score, r.mcq_score, r.subjective_score,
+              r.is_finalised, r.is_released,
               ts.tab_switch_count
        FROM test_assignments ta
        JOIN tests t ON t.id = ta.test_id

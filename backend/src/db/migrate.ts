@@ -114,6 +114,10 @@ const statements = [
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`,
 
+  `ALTER TABLE results ADD COLUMN IF NOT EXISTS is_released BOOLEAN DEFAULT FALSE`,
+  `ALTER TABLE results ADD COLUMN IF NOT EXISTS released_at TIMESTAMPTZ`,
+  `ALTER TABLE results ADD COLUMN IF NOT EXISTS released_by UUID REFERENCES admins(id)`,
+
   `CREATE INDEX IF NOT EXISTS idx_employees_prefix ON employees(access_key_prefix)`,
   `CREATE INDEX IF NOT EXISTS idx_assignments_employee ON test_assignments(employee_id, status)`,
   `CREATE INDEX IF NOT EXISTS idx_assignments_test ON test_assignments(test_id)`,

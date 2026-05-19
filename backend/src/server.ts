@@ -4,6 +4,7 @@ import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
 import compress from '@fastify/compress'
+import { db } from './db/client'
 import { runMigrations } from './db/migrate'
 import { initQueue } from './services/queue'
 import { authPlugin } from './plugins/auth'
@@ -72,14 +73,31 @@ async function start() {
   })
 
   app.setErrorHandler((error, request, reply) => {
-    app.log.error({ err: error, url: request.url }, 'Unhandled error')
-    const statusCode = error.statusCode || 500
-    reply.status(statusCode).send({
-      error: statusCode >= 500 ? 'Internal server error' : error.message,
-    })
+    app.log.error({ err: error, request: { method: request.method, url: request.url } })
+
+    if (error.validation) {
+      return reply.status(400).send({ error: 'Validation failed', details: error.validation })
+    }
+    if (error.statusCode && error.statusCode < 500) {
+      return reply.status(error.statusCode).send({ error: error.message })
+    }
+    return reply.status(500).send({ error: 'Internal server error' })
+  })
+
+  process.on('unhandledRejection', (reason) => {
+    app.log.error({ reason }, 'Unhandled promise rejection')
   })
 
   await app.listen({ port: Number(process.env.PORT) || 3001, host: '0.0.0.0' })
+
+  // Neon keepalive — ping every 4 minutes to prevent cold starts
+  setInterval(async () => {
+    try {
+      await db.query('SELECT 1')
+    } catch (e) {
+      console.error('Keepalive failed:', e)
+    }
+  }, 4 * 60 * 1000)
 }
 
 start().catch((e) => { console.error(e); process.exit(1) })

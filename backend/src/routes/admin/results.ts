@@ -8,7 +8,7 @@ export const adminResultRoutes: FastifyPluginAsync = async (app) => {
     const { rows } = await db.query(
       `SELECT r.id, r.assignment_id, r.employee_id, r.test_id,
               r.mcq_score, r.subjective_score, r.total_score, r.max_score,
-              r.pass_fail, r.is_finalised, r.created_at,
+              r.pass_fail, r.is_finalised, r.is_released, r.created_at,
               e.name as employee_name, e.email as employee_email, e.department as employee_department,
               t.title as test_title,
               ts.submitted_at
@@ -197,6 +197,27 @@ export const adminResultRoutes: FastifyPluginAsync = async (app) => {
     })
 
     return reply.send({ finalised: true, pass_fail: passFail, total_score: rawTotal, max_score: maxScore })
+  })
+
+  app.post('/release/:testId', { preHandler: [app.requireAdmin] }, async (request, reply) => {
+    const { testId } = request.params as any
+    const adminId = request.user.sub
+
+    const { rows } = await db.query(
+      `UPDATE results
+       SET is_released = true, released_at = NOW(), released_by = $1
+       WHERE test_id = $2
+         AND is_finalised = true
+         AND is_released = false
+       RETURNING id`,
+      [adminId, testId]
+    )
+
+    if (rows.length === 0) {
+      return reply.status(400).send({ error: 'No finalised results to release. Finalise all scores first.' })
+    }
+
+    return reply.send({ released_count: rows.length })
   })
 
   app.post('/:id/hr-decision', { preHandler: [app.requireAdmin] }, async (request, reply) => {

@@ -10,7 +10,14 @@ export const adminAssignmentRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: 'test_id, employee_ids, window_start, window_end required.' })
     }
 
-    if (new Date(window_end) <= new Date(window_start)) {
+    const windowStart = new Date(window_start).toISOString()
+    const windowEnd = new Date(window_end).toISOString()
+
+    if (isNaN(new Date(windowStart).getTime()) || isNaN(new Date(windowEnd).getTime())) {
+      return reply.status(400).send({ error: 'window_start and window_end must be valid ISO date strings.' })
+    }
+
+    if (new Date(windowEnd) <= new Date(windowStart)) {
       return reply.status(400).send({ error: 'window_end must be after window_start.' })
     }
 
@@ -35,7 +42,7 @@ export const adminAssignmentRoutes: FastifyPluginAsync = async (app) => {
              ELSE 'pending'
            END
          RETURNING *, (xmax = 0) as inserted`,
-        [empId, test_id, window_start, window_end, adminId]
+        [empId, test_id, windowStart, windowEnd, adminId]
       )
       if (rows[0].inserted) created.push(rows[0])
       else skipped++
