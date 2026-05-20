@@ -316,8 +316,8 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
 
       alert(`Imported: ${summary.section_count} sections, ${summary.question_count} questions (${summary.mcq_count} MCQ, ${summary.subjective_count} Subjective)`)
     } catch (err: any) {
-      const errs = err.response?.data?.errors || [err.response?.data?.error || 'Import failed']
-      setImportErrors(errs)
+      const msg = err.response?.data?.errors?.join(', ') || err.response?.data?.error || err.message || 'Import failed'
+      setImportErrors([msg])
     } finally {
       setImporting(false)
       e.target.value = ''
