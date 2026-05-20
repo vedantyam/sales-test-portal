@@ -289,7 +289,7 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
       const formData = new FormData()
       formData.append('file', file)
 
-      const res = await adminApi.post('/api/admin/tests/import', formData)
+      const res = await adminApi.post('/admin/tests/import', formData)
       const { sections: imported, errors: warnings, summary } = res.data
 
       const converted: Section[] = imported.map((s: any) => ({

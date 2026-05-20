@@ -165,7 +165,7 @@ export default function ResultsPage() {
       formData.append('file', file)
       formData.append('test_id', testId)
 
-      const res = await adminApi.post('/api/admin/results/import-scores', formData)
+      const res = await adminApi.post('/admin/results/import-scores', formData)
       setImportResult(res.data)
       qc.invalidateQueries({ queryKey: ['results'] })
     } catch (err: any) {
