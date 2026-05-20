@@ -127,6 +127,17 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_results_employee ON results(employee_id)`,
   `CREATE INDEX IF NOT EXISTS idx_sessions_assignment ON test_sessions(assignment_id)`,
   `CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC)`,
+
+  `CREATE TABLE IF NOT EXISTS resource_folders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    created_by UUID REFERENCES admins(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+
+  `ALTER TABLE resources ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES resource_folders(id)`,
+
+  `ALTER TABLE results ADD COLUMN IF NOT EXISTS subjective_scores JSONB DEFAULT '{}'`,
 ]
 
 async function doMigrations(): Promise<void> {

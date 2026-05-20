@@ -5,6 +5,7 @@ import { persist } from 'zustand/middleware'
 
 interface ExamState {
   answers: Record<string, string>
+  explanations: Record<string, string>
   visitedQuestions: string[]
   currentSectionIdx: number
   currentQuestionIdx: number
@@ -14,6 +15,7 @@ interface ExamState {
 
   setAnswer: (qId: string, answer: string) => void
   clearAnswer: (qId: string) => void
+  setExplanation: (qId: string, text: string) => void
   markVisited: (qId: string) => void
   navigate: (sectionIdx: number, questionIdx: number) => void
   setRemaining: (s: number) => void
@@ -26,6 +28,7 @@ export const useExamStore = create<ExamState>()(
   persist(
     (set) => ({
       answers: {},
+      explanations: {},
       visitedQuestions: [],
       currentSectionIdx: 0,
       currentQuestionIdx: 0,
@@ -41,6 +44,8 @@ export const useExamStore = create<ExamState>()(
           delete a[qId]
           return { answers: a }
         }),
+      setExplanation: (qId, text) =>
+        set((s) => ({ explanations: { ...s.explanations, [qId]: text } })),
       markVisited: (qId) =>
         set((s) => ({
           visitedQuestions: s.visitedQuestions.includes(qId)
@@ -55,6 +60,7 @@ export const useExamStore = create<ExamState>()(
       reset: () =>
         set({
           answers: {},
+          explanations: {},
           visitedQuestions: [],
           currentSectionIdx: 0,
           currentQuestionIdx: 0,
@@ -67,6 +73,7 @@ export const useExamStore = create<ExamState>()(
       name: 'exam-answers',
       partialize: (state) => ({
         answers: state.answers,
+        explanations: state.explanations,
         visitedQuestions: state.visitedQuestions,
         currentSectionIdx: state.currentSectionIdx,
         currentQuestionIdx: state.currentQuestionIdx,

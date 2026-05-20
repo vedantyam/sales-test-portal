@@ -123,6 +123,7 @@ export interface SessionAnswer {
   answer: string | null
   correct_answer?: string
   explanation?: string
+  employee_explanation?: string
   awarded_marks: number | null
 }
 
@@ -139,7 +140,14 @@ export interface Resource {
   description: string | null
   url: string
   category: string | null
+  folder_id: string | null
   created_at: string
+}
+
+export interface ResourceFolder {
+  id: string
+  name: string
+  resources: Resource[]
 }
 
 export interface AuditLog {

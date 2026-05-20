@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '../../../../lib/api'
 import { useExamStore } from '../../../../store/examStore'
-import { ExamSession } from '../../../../types'
+import { ExamSession, ShuffledSection } from '../../../../types'
 import ExamSidebar from '../../../../components/employee/ExamSidebar'
 import MCQQuestion from '../../../../components/employee/MCQQuestion'
 import SubjectiveQuestion from '../../../../components/employee/SubjectiveQuestion'
@@ -15,16 +15,39 @@ import Button from '../../../../components/ui/Button'
 const TAB_VIOLATION_LIMIT = 3
 const AUTOSAVE_INTERVAL_MS = 60_000
 
+function buildAnswerBuffer(
+  sections: ShuffledSection[],
+  answers: Record<string, string>,
+  explanations: Record<string, string>
+): Record<string, any> {
+  const buf: Record<string, any> = {}
+  for (const sec of sections) {
+    for (const q of sec.questions) {
+      if (answers[q.id] === undefined) continue
+      if (q.type === 'mcq') {
+        buf[q.id] = { answer: answers[q.id], explanation: explanations[q.id] || undefined }
+      } else {
+        buf[q.id] = answers[q.id]
+      }
+    }
+  }
+  // also include any answers not yet in sections (shouldn't happen but safe)
+  for (const [qId, val] of Object.entries(answers)) {
+    if (!(qId in buf)) buf[qId] = val
+  }
+  return buf
+}
+
 export default function ExamPage() {
   const params = useParams()
   const router = useRouter()
   const assignmentId = params.assignmentId as string
 
   const {
-    answers, visitedQuestions,
+    answers, explanations, visitedQuestions,
     currentSectionIdx, currentQuestionIdx,
     remainingSeconds, isSubmitted,
-    setAnswer, clearAnswer, markVisited, navigate,
+    setAnswer, clearAnswer, setExplanation, markVisited, navigate,
     setRemaining, tick, markSubmitted, reset,
   } = useExamStore()
 
@@ -37,8 +60,10 @@ export default function ExamPage() {
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const answersRef = useRef(answers)
   answersRef.current = answers
+  const explanationsRef = useRef(explanations)
+  explanationsRef.current = explanations
+  const sessionRef = useRef<ExamSession | null>(null)
 
-  // GET session — starts if not started, resumes if in_progress
   const { data: session, isLoading, error } = useQuery<ExamSession>({
     queryKey: ['exam', assignmentId],
     queryFn: async () => {
@@ -49,11 +74,16 @@ export default function ExamPage() {
     staleTime: Infinity,
   })
 
+  useEffect(() => {
+    if (session) sessionRef.current = session
+  }, [session])
+
   const submitMutation = useMutation({
     mutationFn: async (isAuto: boolean) => {
-      // Save latest answers first, then submit
-      await api.patch(`/employee/exam/${assignmentId}/save`, { answers: answersRef.current })
-      await api.post(`/employee/exam/${assignmentId}/submit`, { answers: answersRef.current, auto: isAuto })
+      const sections = sessionRef.current?.sections ?? []
+      const buffer = buildAnswerBuffer(sections, answersRef.current, explanationsRef.current)
+      await api.patch(`/employee/exam/${assignmentId}/save`, { answers: buffer })
+      await api.post(`/employee/exam/${assignmentId}/submit`, { answers: buffer, auto: isAuto })
     },
     onSuccess: (_, isAuto) => {
       markSubmitted()
@@ -65,11 +95,12 @@ export default function ExamPage() {
 
   const autoSaveMutation = useMutation({
     mutationFn: async () => {
-      await api.patch(`/employee/exam/${assignmentId}/save`, { answers: answersRef.current })
+      const sections = sessionRef.current?.sections ?? []
+      const buffer = buildAnswerBuffer(sections, answersRef.current, explanationsRef.current)
+      await api.patch(`/employee/exam/${assignmentId}/save`, { answers: buffer })
     },
   })
 
-  // Init store from session
   useEffect(() => {
     if (!session) return
 
@@ -80,28 +111,37 @@ export default function ExamPage() {
 
     setRemaining(session.remaining_seconds)
 
-    // Merge server answers with localStorage answers (localStorage wins as it's more recent)
     if (session.answers) {
-      const merged = { ...session.answers, ...answers }
-      Object.entries(merged).forEach(([qId, ans]) => setAnswer(qId, ans))
+      const serverAnswers: Record<string, string> = {}
+      const serverExplanations: Record<string, string> = {}
+      for (const [qId, val] of Object.entries(session.answers)) {
+        if (typeof val === 'object' && val !== null && 'answer' in (val as any)) {
+          const v = val as any
+          if (v.answer) serverAnswers[qId] = v.answer
+          if (v.explanation) serverExplanations[qId] = v.explanation
+        } else if (typeof val === 'string') {
+          serverAnswers[qId] = val
+        }
+      }
+      // localStorage wins for answers
+      const mergedAnswers = { ...serverAnswers, ...answers }
+      const mergedExplanations = { ...serverExplanations, ...explanations }
+      Object.entries(mergedAnswers).forEach(([qId, ans]) => setAnswer(qId, ans))
+      Object.entries(mergedExplanations).forEach(([qId, txt]) => setExplanation(qId, txt))
     }
 
-    // Mark first question visited
     if (session.sections.length > 0 && session.sections[0].questions.length > 0) {
       markVisited(session.sections[0].questions[0].id)
     }
   }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Countdown timer
   useEffect(() => {
     if (!session || isSubmitted) return
     if (['submitted', 'auto_submitted'].includes(session.status)) return
-
     tickRef.current = setInterval(tick, 1000)
     return () => clearInterval(tickRef.current!)
   }, [session, isSubmitted]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-submit when time runs out
   useEffect(() => {
     if (remainingSeconds === 0 && session && !isSubmitted && !submitMutation.isPending) {
       setAutoSubmitMsg('Time is up! Your exam is being submitted.')
@@ -109,14 +149,12 @@ export default function ExamPage() {
     }
   }, [remainingSeconds]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-save every 60s
   useEffect(() => {
     if (!session || isSubmitted) return
     autoSaveRef.current = setInterval(() => { autoSaveMutation.mutate() }, AUTOSAVE_INTERVAL_MS)
     return () => clearInterval(autoSaveRef.current!)
   }, [session, isSubmitted]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Tab switch detection
   useEffect(() => {
     if (!session || isSubmitted) return
     const handleVisibilityChange = () => {
@@ -133,12 +171,13 @@ export default function ExamPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [session, isSubmitted]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Offline detection
   useEffect(() => {
     const goOffline = () => setIsOffline(true)
     const goOnline = () => {
       setIsOffline(false)
-      api.patch(`/employee/exam/${assignmentId}/save`, { answers: answersRef.current }).catch(() => {})
+      const sections = sessionRef.current?.sections ?? []
+      const buffer = buildAnswerBuffer(sections, answersRef.current, explanationsRef.current)
+      api.patch(`/employee/exam/${assignmentId}/save`, { answers: buffer }).catch(() => {})
     }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
@@ -201,7 +240,6 @@ export default function ExamPage() {
     return currentQuestionIdx < curSec.questions.length - 1 || currentSectionIdx < sections.length - 1
   }
 
-  // Loading
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -292,8 +330,10 @@ export default function ExamPage() {
                 questionNumber={currentQuestionIdx + 1}
                 totalInSection={currentSection.questions.length}
                 selectedAnswer={answers[currentQuestion.id]}
+                explanation={explanations[currentQuestion.id] ?? ''}
                 onAnswer={(optId) => handleAnswer(currentQuestion.id, optId)}
                 onClear={() => handleClear(currentQuestion.id)}
+                onExplanation={(text) => setExplanation(currentQuestion.id, text)}
                 onPrev={hasPrev() ? navPrev : undefined}
                 onNext={hasNext() ? navNext : undefined}
               />

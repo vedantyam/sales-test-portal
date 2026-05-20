@@ -9,8 +9,10 @@ interface MCQQuestionProps {
   questionNumber: number
   totalInSection: number
   selectedAnswer: string | undefined
+  explanation: string
   onAnswer: (optionId: string) => void
   onClear: () => void
+  onExplanation: (text: string) => void
   onPrev?: () => void
   onNext?: () => void
 }
@@ -21,8 +23,10 @@ export default function MCQQuestion({
   questionNumber,
   totalInSection,
   selectedAnswer,
+  explanation,
   onAnswer,
   onClear,
+  onExplanation,
   onPrev,
   onNext,
 }: MCQQuestionProps) {
@@ -60,7 +64,20 @@ export default function MCQQuestion({
         ))}
       </div>
 
-      <div className="flex-shrink-0 mt-6 flex items-center justify-between">
+      <div className="flex-shrink-0 mt-4">
+        <label className="block text-xs text-gray-500 mb-1">
+          Optional: Explain why you chose this answer
+        </label>
+        <textarea
+          value={explanation}
+          onChange={(e) => onExplanation(e.target.value)}
+          placeholder="Write your reasoning here..."
+          rows={3}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white resize-vertical focus:outline-none focus:ring-1 focus:ring-blue-500 font-inherit"
+        />
+      </div>
+
+      <div className="flex-shrink-0 mt-4 flex items-center justify-between">
         <button
           onClick={onClear}
           disabled={!selectedAnswer}
