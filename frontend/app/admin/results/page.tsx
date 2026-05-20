@@ -42,6 +42,9 @@ export default function ResultsPage() {
   const [scores, setScores] = useState<Record<string, number>>({})
   const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [showRelease, setShowRelease] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<any>(null)
+  const [importingTestId, setImportingTestId] = useState<string | null>(null)
 
   const { data: results, isLoading } = useQuery<ResultSummary[]>({
     queryKey: ['results'],
@@ -149,6 +152,30 @@ export default function ResultsPage() {
     onError: () => setNotification({ msg: 'Failed to finalise', type: 'error' }),
   })
 
+  async function handleImportScores(e: React.ChangeEvent<HTMLInputElement>, testId: string) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setImporting(true)
+    setImportingTestId(testId)
+    setImportResult(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('test_id', testId)
+
+      const res = await adminApi.post('/api/admin/results/import-scores', formData)
+      setImportResult(res.data)
+      qc.invalidateQueries({ queryKey: ['results'] })
+    } catch (err: any) {
+      setImportResult({ error: err.response?.data?.error || 'Import failed' })
+    } finally {
+      setImporting(false)
+      e.target.value = ''
+    }
+  }
+
   function handleScoreChange(questionId: string, val: string) {
     const n = parseFloat(val)
     if (!isNaN(n)) setScores((prev) => ({ ...prev, [questionId]: n }))
@@ -188,11 +215,47 @@ export default function ResultsPage() {
               <p className="text-xs text-gray-400">No results yet.</p>
             )}
             {testGroups.map((g) => (
-              <div key={g.testId} className="bg-white border border-gray-200 rounded-lg px-3 py-2">
+              <div key={g.testId} className="bg-white border border-gray-200 rounded-lg px-3 py-2 space-y-1.5">
                 <p className="text-xs font-medium text-gray-900 truncate">{g.testTitle}</p>
                 <p className="text-xs text-gray-500">
                   {g.finalisedCount}/{g.results.length} finalised
                 </p>
+                <div className="flex gap-1.5 flex-wrap">
+                  <button
+                    onClick={() => window.open(`/api/admin/results/export/${g.testId}`, '_blank')}
+                    className="text-xs px-2 py-1 border border-gray-200 rounded bg-white hover:bg-gray-50 text-gray-600"
+                  >
+                    📥 Export
+                  </button>
+                  <label className="cursor-pointer text-xs px-2 py-1 border border-gray-200 rounded bg-white hover:bg-gray-50 text-gray-600">
+                    {importing && importingTestId === g.testId ? 'Importing...' : '📤 Import scores'}
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={(e) => handleImportScores(e, g.testId)}
+                      className="hidden"
+                      disabled={importing}
+                    />
+                  </label>
+                </div>
+                {importResult && importingTestId === g.testId && (
+                  <div className="text-xs p-2 bg-gray-50 rounded">
+                    {importResult.error ? (
+                      <span className="text-red-600">Error: {importResult.error}</span>
+                    ) : (
+                      <div className="space-y-0.5">
+                        <div className="text-green-700 font-medium">Import successful</div>
+                        <div>Updated: {importResult.summary?.employees_updated}</div>
+                        <div>Auto-finalised: {importResult.summary?.employees_auto_finalised}</div>
+                        {importResult.warnings?.length > 0 && (
+                          <div className="text-amber-700">
+                            {importResult.warnings.length} warning(s)
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {g.allReleased ? (
                   <span className="text-xs text-green-600 font-medium">All released</span>
                 ) : (
@@ -270,7 +333,7 @@ export default function ResultsPage() {
                 >
                   <p className="font-medium text-sm text-gray-900 truncate">{r.test_title}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{formatDate(r.submitted_at)}</p>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {passBadge(r.pass_fail)}
                     {r.total_score !== null && (
                       <span className="text-xs text-gray-500">{r.total_score}/{r.max_score}</span>
@@ -279,6 +342,12 @@ export default function ResultsPage() {
                       <span className="text-xs text-amber-600">Pending</span>
                     )}
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); window.open(`/api/admin/results/export/${r.test_id}`, '_blank') }}
+                    className="mt-1.5 text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-50"
+                  >
+                    📥 Export answers
+                  </button>
                 </button>
               ))}
             </div>
@@ -297,10 +366,20 @@ export default function ResultsPage() {
         ) : detail ? (
           <>
             <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0">
-              <h2 className="font-semibold text-gray-900">{detail.test_title}</h2>
-              <p className="text-xs text-gray-500">
-                {detail.employee_name} · {detail.employee_department} · {detail.employee_email}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h2 className="font-semibold text-gray-900">{detail.test_title}</h2>
+                  <p className="text-xs text-gray-500">
+                    {detail.employee_name} · {detail.employee_department} · {detail.employee_email}
+                  </p>
+                </div>
+                <button
+                  onClick={() => window.open(`/api/admin/results/export/${detail.test_id}`, '_blank')}
+                  className="flex-shrink-0 text-xs px-2 py-1 border border-gray-200 rounded text-gray-500 hover:bg-gray-50"
+                >
+                  📥 Export answers
+                </button>
+              </div>
               <div className="flex items-center gap-4 mt-2">
                 {passBadge(detail.pass_fail)}
                 <span className="text-sm text-gray-600">

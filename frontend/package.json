@@ -5,7 +5,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "seed": "tsx --env-file-if-exists=.env.local -r dotenv/config scripts/seed.ts"
+    "seed": "tsx --env-file-if-exists=.env.local -r dotenv/config scripts/seed.ts",
+    "generate-template": "tsx scripts/generateTemplate.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6",
@@ -23,6 +24,7 @@
     "react": "^18",
     "react-dom": "^18",
     "tailwind-merge": "^2",
+    "xlsx": "^0.18.5",
     "zustand": "^4"
   },
   "devDependencies": {

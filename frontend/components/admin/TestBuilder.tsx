@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { generateId } from '../../lib/utils'
+import { adminApi } from '../../lib/api'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import Textarea from '../ui/Textarea'
@@ -35,6 +36,7 @@ interface Question {
   explanation: string
   marks: number
   word_limit: number | ''
+  expected_answer?: string
 }
 
 interface Section {
@@ -138,6 +140,8 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
   const [sections, setSections] = useState<Section[]>(initialData?.sections ?? [newSection()])
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [importing, setImporting] = useState(false)
+  const [importErrors, setImportErrors] = useState<string[]>([])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -274,6 +278,52 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
     setStep(3)
   }
 
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setImporting(true)
+    setImportErrors([])
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await adminApi.post('/api/admin/tests/import', formData)
+      const { sections: imported, errors: warnings, summary } = res.data
+
+      const converted: Section[] = imported.map((s: any) => ({
+        id: s.id,
+        title: s.name,
+        questions: s.questions.map((q: any) => ({
+          id: q.id,
+          type: q.type as 'mcq' | 'subjective',
+          text: q.text,
+          options: q.options ?? [],
+          correct_answer: q.correct_answer ?? '',
+          explanation: '',
+          marks: q.marks,
+          word_limit: '' as '' | number,
+          expected_answer: q.expected_answer,
+        })),
+      }))
+
+      setSections(converted)
+
+      if (warnings.length > 0) {
+        setImportErrors(warnings)
+      }
+
+      alert(`Imported: ${summary.section_count} sections, ${summary.question_count} questions (${summary.mcq_count} MCQ, ${summary.subjective_count} Subjective)`)
+    } catch (err: any) {
+      const errs = err.response?.data?.errors || [err.response?.data?.error || 'Import failed']
+      setImportErrors(errs)
+    } finally {
+      setImporting(false)
+      e.target.value = ''
+    }
+  }
+
   async function handleSave() {
     setSaving(true)
     try {
@@ -341,6 +391,26 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
       {/* Step 2: Sections & Questions */}
       {step === 2 && (
         <div>
+          <div className="mb-4 p-3 border border-dashed border-gray-300 rounded-lg">
+            <p className="text-xs text-gray-500 mb-2">Import questions from Excel file</p>
+            <div className="flex items-center gap-3">
+              <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-gray-50">
+                {importing ? 'Importing...' : '📥 Import from Excel'}
+                <input type="file" accept=".xlsx,.xls" onChange={handleImport} className="hidden" disabled={importing} />
+              </label>
+              <a href="/exam-template.xlsx" download className="text-xs text-gray-400 underline">
+                Download template
+              </a>
+            </div>
+            {importErrors.length > 0 && (
+              <div className="mt-2 space-y-0.5">
+                {importErrors.map((e, i) => (
+                  <p key={i} className="text-xs text-red-600">⚠ {e}</p>
+                ))}
+              </div>
+            )}
+          </div>
+
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSectionDragEnd}>
             <SortableContext items={sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               {sections.map((sec, si) => (
