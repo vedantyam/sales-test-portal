@@ -16,7 +16,7 @@ interface AssignModalProps {
 }
 
 const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1))
-const MINUTES = ['00', '15', '30', '45']
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
 
 function to24h(hour: string, minute: string, period: 'AM' | 'PM'): string {
   let h = parseInt(hour, 10)
@@ -89,8 +89,6 @@ export default function AssignModal({ open, testTitle, employees, onClose, onAss
 
     if (start < new Date()) return 'Start time cannot be in the past'
     if (end <= start) return 'End time must be after start time'
-    const durationMs = end.getTime() - start.getTime()
-    if (durationMs < 30 * 60 * 1000) return 'Window must be at least 30 minutes'
     return ''
   }
 
@@ -177,7 +175,7 @@ export default function AssignModal({ open, testTitle, employees, onClose, onAss
               <button type="button" onClick={() => setEndPeriod('PM')} className={periodCls(endPeriod === 'PM')}>PM</button>
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-1">Minimum 30-minute window required</p>
+          <p className="text-xs text-gray-400 mt-1">End time must be after start time</p>
         </div>
 
         {/* Window preview */}

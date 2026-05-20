@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   if (auth.error) return auth.error
 
   const { rows } = await db.query(
-    'SELECT id, title, description, url, category, created_at FROM resources ORDER BY created_at DESC'
+    'SELECT id, title, description, url, category, folder_id, created_at FROM resources ORDER BY created_at DESC'
   )
   return NextResponse.json({ resources: rows })
 }
@@ -22,23 +22,26 @@ export async function POST(request: NextRequest) {
   if (auth.error) return auth.error
 
   const body = await request.json().catch(() => ({}))
-  const { title, description, url, category } = body
+  const { title, description, url, external_url, category, file_type, folder_id } = body
   const adminId = auth.user!.sub
 
-  if (!title?.trim() || !url?.trim()) {
+  const resourceUrl = url || external_url
+  const resourceCategory = category || file_type
+
+  if (!title?.trim() || !resourceUrl?.trim()) {
     return NextResponse.json({ error: 'Title and URL are required.' }, { status: 400 })
   }
 
   try {
-    new URL(url)
+    new URL(resourceUrl)
   } catch {
     return NextResponse.json({ error: 'Invalid URL.' }, { status: 400 })
   }
 
   const { rows } = await db.query(
-    `INSERT INTO resources (title, description, url, category, uploaded_by)
-     VALUES ($1,$2,$3,$4,$5) RETURNING id, title, description, url, category, created_at`,
-    [title.trim(), description?.trim() || null, url.trim(), category?.trim() || null, adminId]
+    `INSERT INTO resources (title, description, url, category, folder_id, uploaded_by)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, title, description, url, category, folder_id, created_at`,
+    [title.trim(), description?.trim() || null, resourceUrl.trim(), resourceCategory?.trim() || null, folder_id || null, adminId]
   )
   return NextResponse.json({ resource: rows[0] }, { status: 201 })
 }

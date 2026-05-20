@@ -10,8 +10,20 @@ export async function GET(request: NextRequest) {
   const auth = getAuthUser(request)
   if (auth.error) return auth.error
 
-  const { rows } = await db.query(
-    'SELECT id, title, description, url, category, created_at FROM resources ORDER BY created_at DESC'
+  const { rows: folders } = await db.query(
+    'SELECT * FROM resource_folders ORDER BY name ASC'
   )
-  return NextResponse.json({ resources: rows })
+
+  const { rows: resources } = await db.query(
+    'SELECT id, title, description, url, category, folder_id, created_at FROM resources ORDER BY created_at DESC'
+  )
+
+  const foldersWithResources = folders.map((folder: any) => ({
+    ...folder,
+    resources: resources.filter((r: any) => r.folder_id === folder.id),
+  }))
+
+  const uncategorized = resources.filter((r: any) => !r.folder_id)
+
+  return NextResponse.json({ folders: foldersWithResources, uncategorized })
 }
