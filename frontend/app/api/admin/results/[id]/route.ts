@@ -12,7 +12,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     `SELECT r.id, r.assignment_id, r.employee_id, r.test_id,
             r.mcq_score, r.subjective_score, r.total_score, r.max_score,
             r.pass_fail, r.is_finalised, r.created_at,
-            r.subjective_answers,
+            r.subjective_scores,
             e.name as employee_name, e.email as employee_email, e.department as employee_department,
             t.title as test_title, t.sections, t.pass_score_pct,
             ts.answer_buffer, ts.submitted_at
@@ -27,20 +27,33 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (!rows[0]) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
 
   const row = rows[0]
-  const answerBuffer: Record<string, string> = row.answer_buffer || {}
-  const subjectiveAnswers: Record<string, number> = row.subjective_answers || {}
+  const answerBuffer: Record<string, any> = row.answer_buffer || {}
+  const subjectiveScores: Record<string, number> = row.subjective_scores || {}
   const sections: any[] = row.sections || []
 
   const answers: any[] = []
   for (const section of sections) {
     for (const q of section.questions) {
-      const rawAnswer = answerBuffer[q.id] || null
-      let displayAnswer: string | null = rawAnswer
+      const rawVal = answerBuffer[q.id] ?? null
+
+      let answerStr: string | null = null
+      let employeeExplanation: string | null = null
+
+      if (rawVal !== null) {
+        if (typeof rawVal === 'object' && 'answer' in rawVal) {
+          answerStr = rawVal.answer || null
+          employeeExplanation = rawVal.explanation || null
+        } else {
+          answerStr = typeof rawVal === 'string' ? rawVal : null
+        }
+      }
+
+      let displayAnswer: string | null = answerStr
       let correctAnswerText: string | undefined
 
       if (q.type === 'mcq' && q.options) {
-        if (rawAnswer) {
-          const givenOpt = q.options.find((o: any) => o.id === rawAnswer)
+        if (answerStr) {
+          const givenOpt = q.options.find((o: any) => o.id === answerStr)
           if (givenOpt) displayAnswer = givenOpt.text
         }
         if (q.correct_answer) {
@@ -57,7 +70,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         answer: displayAnswer,
         correct_answer: correctAnswerText,
         explanation: q.explanation || undefined,
-        awarded_marks: q.type === 'subjective' ? (subjectiveAnswers[q.id] ?? null) : null,
+        employee_explanation: employeeExplanation || undefined,
+        awarded_marks: q.type === 'subjective' ? (subjectiveScores[q.id] ?? null) : null,
       })
     }
   }

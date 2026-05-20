@@ -32,3 +32,36 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   return handleUpdate(request, params.id)
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const auth = requireAdmin(request)
+  if (auth.error) return auth.error
+
+  const { id } = params
+
+  const { rows: activeSessions } = await db.query(
+    `SELECT COUNT(*) FROM test_assignments ta
+     JOIN test_sessions ts ON ts.assignment_id = ta.id
+     WHERE ta.employee_id = $1 AND ta.status = 'in_progress'`,
+    [id]
+  )
+
+  if (Number(activeSessions[0].count) > 0) {
+    return NextResponse.json(
+      { error: 'Cannot delete — employee is currently taking an exam' },
+      { status: 403 }
+    )
+  }
+
+  await db.query(`DELETE FROM hr_decisions WHERE employee_id = $1`, [id])
+  await db.query(`DELETE FROM results WHERE employee_id = $1`, [id])
+  await db.query(
+    `DELETE FROM test_sessions WHERE assignment_id IN
+     (SELECT id FROM test_assignments WHERE employee_id = $1)`,
+    [id]
+  )
+  await db.query(`DELETE FROM test_assignments WHERE employee_id = $1`, [id])
+  await db.query(`DELETE FROM employees WHERE id = $1`, [id])
+
+  return NextResponse.json({ deleted: true })
+}

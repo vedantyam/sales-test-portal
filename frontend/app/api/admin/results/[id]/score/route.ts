@@ -11,16 +11,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const body = await request.json().catch(() => ({}))
   const { question_id, marks } = body
 
-  const { rows: existing } = await db.query('SELECT is_finalised FROM results WHERE id=$1', [params.id])
-  if (!existing[0]) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
-  if (existing[0].is_finalised) return NextResponse.json({ error: 'Result already finalised.' }, { status: 403 })
+  const { rows } = await db.query(
+    'SELECT is_finalised, subjective_scores FROM results WHERE id=$1',
+    [params.id]
+  )
+  if (!rows[0]) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
+  if (rows[0].is_finalised) return NextResponse.json({ error: 'Result already finalised.' }, { status: 403 })
+
+  const currentScores = rows[0].subjective_scores || {}
+  const updatedScores = { ...currentScores, [question_id]: Number(marks) }
 
   await db.query(
-    `UPDATE results
-     SET subjective_answers = jsonb_set(COALESCE(subjective_answers, '{}'), $1, to_jsonb($2::numeric))
-     WHERE id=$3`,
-    [`{${question_id}}`, marks, params.id]
+    'UPDATE results SET subjective_scores = $1 WHERE id = $2',
+    [JSON.stringify(updatedScores), params.id]
   )
 
-  return NextResponse.json({ saved: true })
+  return NextResponse.json({ saved: true, scores: updatedScores })
 }

@@ -5,12 +5,20 @@ import { db } from '@/lib/db'
 import { getAuthUser } from '@/lib/auth'
 import { fisherYates } from '@/lib/shuffle'
 
+function getAnswer(buffer: any, questionId: string): string | null {
+  const val = buffer[questionId]
+  if (!val) return null
+  if (typeof val === 'string') return val
+  if (typeof val === 'object') return val.answer || null
+  return null
+}
+
 async function submitExam(assignmentId: string, testId: string, employeeId: string, isAuto = false): Promise<void> {
   const { rows: sessionRows } = await db.query(
     'SELECT answer_buffer FROM test_sessions WHERE assignment_id=$1',
     [assignmentId]
   )
-  const answerBuffer: Record<string, string> = sessionRows[0]?.answer_buffer || {}
+  const answerBuffer = sessionRows[0]?.answer_buffer || {}
 
   const { rows: testRows } = await db.query('SELECT sections FROM tests WHERE id=$1', [testId])
   const sections = testRows[0]?.sections || []
@@ -24,7 +32,7 @@ async function submitExam(assignmentId: string, testId: string, employeeId: stri
       totalMaxMarks += q.marks || 0
       if (q.type !== 'mcq') continue
       totalMcq++
-      if (answerBuffer[q.id] === q.correct_answer) totalCorrect++
+      if (getAnswer(answerBuffer, q.id) === q.correct_answer) totalCorrect++
     }
   }
 
@@ -91,47 +99,69 @@ export async function GET(request: NextRequest, { params }: { params: { assignme
     return NextResponse.json({ error: 'Exam window expired.' }, { status: 403 })
   }
 
-  const { rows: sessionRows } = await db.query(
-    'SELECT * FROM test_sessions WHERE assignment_id=$1',
-    [assignmentId]
-  )
-
-  let session = sessionRows[0]
+  // Use transaction with SELECT FOR UPDATE to prevent duplicate sessions
+  const client = await db.connect()
+  let session: any
   let shuffledSections: any[]
   let remainingSeconds: number
 
-  if (session) {
-    const elapsed = Math.floor((now.getTime() - new Date(session.started_at).getTime()) / 1000)
-    const totalSeconds = assignment.duration_minutes * 60
-    remainingSeconds = Math.max(0, totalSeconds - elapsed)
+  try {
+    await client.query('BEGIN')
 
-    if (remainingSeconds === 0) {
-      await submitExam(assignmentId, assignment.test_id, employeeId, true)
-      return NextResponse.json({ error: 'Time expired. Exam auto-submitted.' }, { status: 403 })
+    // Lock the assignment row
+    await client.query(
+      'SELECT id FROM test_assignments WHERE id=$1 FOR UPDATE',
+      [assignmentId]
+    )
+
+    const { rows: sessionRows } = await client.query(
+      'SELECT * FROM test_sessions WHERE assignment_id=$1',
+      [assignmentId]
+    )
+
+    if (sessionRows[0]) {
+      session = sessionRows[0]
+      const elapsed = Math.floor((now.getTime() - new Date(session.started_at).getTime()) / 1000)
+      const totalSeconds = assignment.duration_minutes * 60
+      remainingSeconds = Math.max(0, totalSeconds - elapsed)
+
+      if (remainingSeconds === 0) {
+        await client.query('COMMIT')
+        client.release()
+        await submitExam(assignmentId, assignment.test_id, employeeId, true)
+        return NextResponse.json({ error: 'Time expired. Exam auto-submitted.' }, { status: 403 })
+      }
+
+      shuffledSections = session.question_order
+    } else {
+      shuffledSections = (assignment.sections as any[]).map((section: any) => ({
+        ...section,
+        questions: fisherYates(section.questions).map((q: any) => {
+          const { correct_answer: _ca, explanation: _ex, ...safe } = q
+          return {
+            ...safe,
+            options: q.type === 'mcq' ? fisherYates(q.options || []) : (q.options || []),
+          }
+        }),
+      }))
+
+      const { rows: newSess } = await client.query(
+        `INSERT INTO test_sessions (assignment_id, question_order, answer_buffer)
+         VALUES ($1,$2,'{}') RETURNING *`,
+        [assignmentId, JSON.stringify(shuffledSections)]
+      )
+      session = newSess[0]
+      remainingSeconds = assignment.duration_minutes * 60
+
+      await client.query(`UPDATE test_assignments SET status='in_progress' WHERE id=$1`, [assignmentId])
     }
 
-    shuffledSections = session.question_order
-  } else {
-    shuffledSections = (assignment.sections as any[]).map((section: any) => ({
-      ...section,
-      questions: fisherYates(section.questions).map((q: any) => {
-        const { correct_answer: _ca, explanation: _ex, ...safe } = q
-        return {
-          ...safe,
-          options: q.type === 'mcq' ? fisherYates(q.options || []) : (q.options || []),
-        }
-      }),
-    }))
-
-    const { rows: newSess } = await db.query(
-      `INSERT INTO test_sessions (assignment_id, question_order, answer_buffer)
-       VALUES ($1,$2,'{}') RETURNING *`,
-      [assignmentId, JSON.stringify(shuffledSections)]
-    )
-    session = newSess[0]
-    remainingSeconds = assignment.duration_minutes * 60
-
-    await db.query(`UPDATE test_assignments SET status='in_progress' WHERE id=$1`, [assignmentId])
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
   }
 
   return NextResponse.json({

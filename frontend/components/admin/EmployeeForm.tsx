@@ -88,7 +88,6 @@ export default function EmployeeForm({ open, employee, onClose, onSave }: Employ
           onChange={(e) => setEmail(e.target.value)}
           error={errors.email}
           placeholder="john@company.com"
-          disabled={!!employee}
         />
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>

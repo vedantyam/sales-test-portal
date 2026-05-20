@@ -4,12 +4,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser } from '@/lib/auth'
 
+function getAnswer(buffer: any, questionId: string): string | null {
+  const val = buffer[questionId]
+  if (!val) return null
+  if (typeof val === 'string') return val
+  if (typeof val === 'object') return val.answer || null
+  return null
+}
+
 async function submitExam(assignmentId: string, testId: string, employeeId: string, isAuto = false): Promise<void> {
   const { rows: sessionRows } = await db.query(
     'SELECT answer_buffer FROM test_sessions WHERE assignment_id=$1',
     [assignmentId]
   )
-  const answerBuffer: Record<string, string> = sessionRows[0]?.answer_buffer || {}
+  const answerBuffer = sessionRows[0]?.answer_buffer || {}
   const { rows: testRows } = await db.query('SELECT sections FROM tests WHERE id=$1', [testId])
   const sections = testRows[0]?.sections || []
 
@@ -22,7 +30,7 @@ async function submitExam(assignmentId: string, testId: string, employeeId: stri
       totalMaxMarks += q.marks || 0
       if (q.type !== 'mcq') continue
       totalMcq++
-      if (answerBuffer[q.id] === q.correct_answer) totalCorrect++
+      if (getAnswer(answerBuffer, q.id) === q.correct_answer) totalCorrect++
     }
   }
 
@@ -46,7 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: { assignm
   const { assignmentId } = params
 
   const body = await request.json().catch(() => ({}))
-  const { answers, auto } = body as { answers?: Record<string, string>; auto?: boolean }
+  const { answers, auto } = body as { answers?: Record<string, any>; auto?: boolean }
 
   const { rows } = await db.query(
     `SELECT status, test_id FROM test_assignments WHERE id=$1 AND employee_id=$2`,
