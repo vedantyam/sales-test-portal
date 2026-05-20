@@ -144,7 +144,7 @@ export default function ResultsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['results'] })
       qc.invalidateQueries({ queryKey: ['result-detail', selectedResultId] })
-      setNotification({ msg: 'Result finalised and email sent', type: 'success' })
+      setNotification({ msg: 'Result finalised', type: 'success' })
     },
     onError: () => setNotification({ msg: 'Failed to finalise', type: 'error' }),
   })
@@ -334,6 +334,12 @@ export default function ResultsPage() {
                     </p>
                   )}
 
+                  {ans.employee_explanation && (
+                    <p className="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1">
+                      <span className="font-medium">Employee reasoning: </span>{ans.employee_explanation}
+                    </p>
+                  )}
+
                   {ans.explanation && (
                     <p className="text-xs text-gray-500">
                       <span className="font-medium">Explanation: </span>{ans.explanation}
@@ -376,13 +382,13 @@ export default function ResultsPage() {
                 <Button
                   className="w-full"
                   onClick={() => {
-                    if (confirm('Finalise this result? This will compute the total score, set pass/fail, and email the employee.')) {
+                    if (confirm('Finalise this result? This will compute the total score and set pass/fail.')) {
                       finaliseMutation.mutate(detail.id)
                     }
                   }}
                   loading={finaliseMutation.isPending}
                 >
-                  Finalise Result & Send Email
+                  Finalise Result
                 </Button>
               </div>
             )}

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../../lib/api'
 import { useAuthStore } from '../../../store/authStore'
-import { Assignment, Resource } from '../../../types'
+import { Assignment, ResourceFolder, Resource } from '../../../types'
 import Badge from '../../../components/ui/Badge'
 import Button from '../../../components/ui/Button'
 
@@ -70,16 +70,19 @@ function ResultPanel({ a }: { a: Assignment }) {
         ) : (
           <span className="text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">Fail</span>
         )}
-        {a.total_score != null && a.max_score != null && (
+        {a.total_score != null && (
           <span className="text-sm text-gray-600">
-            Score: <strong>{a.total_score}</strong> / {a.max_score}
+            Score: <strong>{a.total_score}%</strong>
           </span>
         )}
       </div>
       {(a.mcq_score != null || a.subjective_score != null) && (
         <div className="text-xs text-gray-500 flex gap-4">
           {a.mcq_score != null && <span>MCQ: {a.mcq_score}%</span>}
-          {a.subjective_score != null && <span>Subjective: {a.subjective_score} marks</span>}
+          {a.subjective_score != null
+            ? <span>Subjective: {a.subjective_score}%</span>
+            : <span>Subjective: Pending</span>
+          }
         </div>
       )}
     </div>
@@ -93,10 +96,17 @@ function DashboardContent() {
   const [tab, setTab] = useState<'tests' | 'resources'>('tests')
   const [clockDrift, setClockDrift] = useState(false)
   const [, setTick] = useState(0)
+  const [openFolders, setOpenFolders] = useState<string[]>([])
   const serverOffsetRef = useRef<number>(0)
 
   function getServerNow(): Date {
     return new Date(Date.now() + serverOffsetRef.current)
+  }
+
+  function toggleFolder(id: string) {
+    setOpenFolders((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
   }
 
   const { data: assignments, isLoading: loadingAssignments } = useQuery<Assignment[]>({
@@ -112,16 +122,15 @@ function DashboardContent() {
     },
   })
 
-  const { data: resources, isLoading: loadingResources } = useQuery<Resource[]>({
+  const { data: resourceData, isLoading: loadingResources } = useQuery<{ folders: ResourceFolder[]; uncategorized: Resource[] }>({
     queryKey: ['resources'],
     queryFn: async () => {
       const res = await api.get('/employee/resources')
-      return res.data.resources
+      return res.data
     },
     enabled: tab === 'resources',
   })
 
-  // 30s tick to re-evaluate countdown/window status
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30_000)
     return () => clearInterval(id)
@@ -195,8 +204,11 @@ function DashboardContent() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
+                          <div style={{ fontSize: 15, fontWeight: 600, color: 'inherit', marginBottom: 6 }}>
+                            {a.test_title || 'Test'}
+                          </div>
+
                           <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-gray-900 truncate">{a.test_title}</h3>
                             {statusBadge(status)}
                           </div>
 
@@ -238,35 +250,91 @@ function DashboardContent() {
         {tab === 'resources' && (
           <div>
             {loadingResources && <div className="text-center py-16 text-gray-400">Loading...</div>}
-            {!loadingResources && (!resources || resources.length === 0) && (
+            {!loadingResources && (!resourceData || (resourceData.folders.length === 0 && resourceData.uncategorized.length === 0)) && (
               <div className="text-center py-16">
                 <p className="text-gray-400 text-sm">No resources available.</p>
               </div>
             )}
-            {resources && resources.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {resources.map((r) => (
-                  <a
-                    key={r.id}
-                    href={r.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-white rounded-xl border border-gray-200 p-4 hover:border-blue-400 hover:shadow-sm transition-all block"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 text-sm truncate">{r.title}</h3>
-                        {r.description && (
-                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{r.description}</p>
+            {resourceData && (
+              <div className="space-y-3">
+                {resourceData.folders.map((folder) => (
+                  <div key={folder.id} className="overflow-hidden">
+                    <div
+                      className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                      style={{ borderRadius: openFolders.includes(folder.id) ? '8px 8px 0 0' : 8 }}
+                      onClick={() => toggleFolder(folder.id)}
+                    >
+                      <span className="text-base">{openFolders.includes(folder.id) ? '📂' : '📁'}</span>
+                      <span className="font-medium text-sm text-gray-900">{folder.name}</span>
+                      <span className="ml-auto text-xs text-gray-400">
+                        {folder.resources.length} file{folder.resources.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    {openFolders.includes(folder.id) && (
+                      <div className="border border-t-0 border-gray-200 rounded-b-lg overflow-hidden">
+                        {folder.resources.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-gray-400 text-center">Empty folder</div>
+                        ) : (
+                          folder.resources.map((r, idx) => (
+                            <div
+                              key={r.id}
+                              className={`flex items-center gap-3 px-4 py-3 ${idx < folder.resources.length - 1 ? 'border-b border-gray-100' : ''}`}
+                            >
+                              <span className="text-base">🔗</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-gray-900 truncate">{r.title}</div>
+                                {r.description && (
+                                  <div className="text-xs text-gray-500">{r.description}</div>
+                                )}
+                              </div>
+                              <a
+                                href={r.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-gray-700 no-underline border border-gray-200 rounded-md px-2.5 py-1 hover:bg-gray-50 flex-shrink-0"
+                              >
+                                Open
+                              </a>
+                            </div>
+                          ))
                         )}
                       </div>
-                      <svg className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </div>
-                    {r.category && <Badge variant="gray" className="mt-2">{r.category}</Badge>}
-                  </a>
+                    )}
+                  </div>
                 ))}
+
+                {resourceData.uncategorized.length > 0 && (
+                  <div>
+                    {resourceData.folders.length > 0 && (
+                      <p className="text-xs text-gray-400 mb-2">Other resources</p>
+                    )}
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                      {resourceData.uncategorized.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className={`flex items-center gap-3 px-4 py-3 ${idx < resourceData.uncategorized.length - 1 ? 'border-b border-gray-100' : ''}`}
+                        >
+                          <span className="text-base">🔗</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">{r.title}</div>
+                            {r.description && (
+                              <div className="text-xs text-gray-500">{r.description}</div>
+                            )}
+                          </div>
+                          <a
+                            href={r.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-gray-700 no-underline border border-gray-200 rounded-md px-2.5 py-1 hover:bg-gray-50 flex-shrink-0"
+                          >
+                            Open
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
