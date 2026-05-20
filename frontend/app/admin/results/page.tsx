@@ -152,6 +152,24 @@ export default function ResultsPage() {
     onError: () => setNotification({ msg: 'Failed to finalise', type: 'error' }),
   })
 
+  async function handleExport(testId: string, testTitle: string) {
+    try {
+      const response = await adminApi.get(`/admin/results/export/${testId}`, {
+        responseType: 'blob',
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `${testTitle.replace(/[^a-zA-Z0-9]/g, '_')}_answers.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e: any) {
+      alert(e.response?.data?.error || 'Export failed')
+    }
+  }
+
   async function handleImportScores(e: React.ChangeEvent<HTMLInputElement>, testId: string) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -222,7 +240,7 @@ export default function ResultsPage() {
                 </p>
                 <div className="flex gap-1.5 flex-wrap">
                   <button
-                    onClick={() => window.open(`/api/admin/results/export/${g.testId}`, '_blank')}
+                    onClick={() => handleExport(g.testId, g.testTitle)}
                     className="text-xs px-2 py-1 border border-gray-200 rounded bg-white hover:bg-gray-50 text-gray-600"
                   >
                     📥 Export
@@ -343,7 +361,7 @@ export default function ResultsPage() {
                     )}
                   </div>
                   <button
-                    onClick={(e) => { e.stopPropagation(); window.open(`/api/admin/results/export/${r.test_id}`, '_blank') }}
+                    onClick={(e) => { e.stopPropagation(); handleExport(r.test_id, r.test_title) }}
                     className="mt-1.5 text-xs px-2 py-0.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-50"
                   >
                     📥 Export answers
@@ -374,7 +392,7 @@ export default function ResultsPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => window.open(`/api/admin/results/export/${detail.test_id}`, '_blank')}
+                  onClick={() => handleExport(detail.test_id, detail.test_title)}
                   className="flex-shrink-0 text-xs px-2 py-1 border border-gray-200 rounded text-gray-500 hover:bg-gray-50"
                 >
                   📥 Export answers
