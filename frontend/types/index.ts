@@ -84,6 +84,7 @@ export interface ExamSession {
   title: string
   duration_minutes: number
   remaining_seconds: number
+  window_end: string
   sections: ShuffledSection[]
   answers: Record<string, string>
   status: string

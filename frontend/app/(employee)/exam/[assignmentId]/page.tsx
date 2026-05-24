@@ -13,14 +13,13 @@ import SubmitModal from '../../../../components/employee/SubmitModal'
 import Button from '../../../../components/ui/Button'
 
 const TAB_VIOLATION_LIMIT = 3
-const AUTOSAVE_INTERVAL_MS = 60_000
 
 function buildAnswerBuffer(
   sections: ShuffledSection[],
   answers: Record<string, string>,
   explanations: Record<string, string>
-): Record<string, any> {
-  const buf: Record<string, any> = {}
+): Record<string, unknown> {
+  const buf: Record<string, unknown> = {}
   for (const sec of sections) {
     for (const q of sec.questions) {
       if (answers[q.id] === undefined) continue
@@ -31,7 +30,6 @@ function buildAnswerBuffer(
       }
     }
   }
-  // also include any answers not yet in sections (shouldn't happen but safe)
   for (const [qId, val] of Object.entries(answers)) {
     if (!(qId in buf)) buf[qId] = val
   }
@@ -48,7 +46,7 @@ export default function ExamPage() {
     currentSectionIdx, currentQuestionIdx,
     remainingSeconds, isSubmitted,
     setAnswer, clearAnswer, setExplanation, markVisited, navigate,
-    setRemaining, tick, markSubmitted, reset,
+    setRemaining, markSubmitted, reset,
   } = useExamStore()
 
   const [showSubmitModal, setShowSubmitModal] = useState(false)
@@ -57,12 +55,13 @@ export default function ExamPage() {
   const [isOffline, setIsOffline] = useState(false)
   const tabViolationsRef = useRef(0)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const answersRef = useRef(answers)
   answersRef.current = answers
   const explanationsRef = useRef(explanations)
   explanationsRef.current = explanations
   const sessionRef = useRef<ExamSession | null>(null)
+  const clockOffsetRef = useRef<number>(0)
+  const windowEndRef = useRef<number>(0)
 
   const { data: session, isLoading, error } = useQuery<ExamSession>({
     queryKey: ['exam', assignmentId],
@@ -78,6 +77,16 @@ export default function ExamPage() {
     if (session) sessionRef.current = session
   }, [session])
 
+  // Fetch server time once on mount to compute clock offset
+  useEffect(() => {
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((data: { timestamp: number }) => {
+        clockOffsetRef.current = data.timestamp - Date.now()
+      })
+      .catch(() => {})
+  }, [])
+
   const submitMutation = useMutation({
     mutationFn: async (isAuto: boolean) => {
       const sections = sessionRef.current?.sections ?? []
@@ -89,15 +98,6 @@ export default function ExamPage() {
       markSubmitted()
       if (isAuto) setAutoSubmitMsg('Your exam has been auto-submitted.')
       clearInterval(tickRef.current!)
-      clearInterval(autoSaveRef.current!)
-    },
-  })
-
-  const autoSaveMutation = useMutation({
-    mutationFn: async () => {
-      const sections = sessionRef.current?.sections ?? []
-      const buffer = buildAnswerBuffer(sections, answersRef.current, explanationsRef.current)
-      await api.patch(`/employee/exam/${assignmentId}/save`, { answers: buffer })
     },
   })
 
@@ -109,21 +109,22 @@ export default function ExamPage() {
       return
     }
 
-    setRemaining(session.remaining_seconds)
+    windowEndRef.current = new Date(session.window_end).getTime()
+    const remaining = Math.max(0, Math.floor((windowEndRef.current - (Date.now() + clockOffsetRef.current)) / 1000))
+    setRemaining(remaining)
 
     if (session.answers) {
       const serverAnswers: Record<string, string> = {}
       const serverExplanations: Record<string, string> = {}
       for (const [qId, val] of Object.entries(session.answers)) {
-        if (typeof val === 'object' && val !== null && 'answer' in (val as any)) {
-          const v = val as any
+        if (typeof val === 'object' && val !== null && 'answer' in (val as Record<string, unknown>)) {
+          const v = val as Record<string, string>
           if (v.answer) serverAnswers[qId] = v.answer
           if (v.explanation) serverExplanations[qId] = v.explanation
         } else if (typeof val === 'string') {
           serverAnswers[qId] = val
         }
       }
-      // localStorage wins for answers
       const mergedAnswers = { ...serverAnswers, ...answers }
       const mergedExplanations = { ...serverExplanations, ...explanations }
       Object.entries(mergedAnswers).forEach(([qId, ans]) => setAnswer(qId, ans))
@@ -135,10 +136,14 @@ export default function ExamPage() {
     }
   }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Timer: tick every second, computing remaining from window_end and server-adjusted clock
   useEffect(() => {
     if (!session || isSubmitted) return
     if (['submitted', 'auto_submitted'].includes(session.status)) return
-    tickRef.current = setInterval(tick, 1000)
+    tickRef.current = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((windowEndRef.current - (Date.now() + clockOffsetRef.current)) / 1000))
+      setRemaining(remaining)
+    }, 1000)
     return () => clearInterval(tickRef.current!)
   }, [session, isSubmitted]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -148,12 +153,6 @@ export default function ExamPage() {
       submitMutation.mutate(true)
     }
   }, [remainingSeconds]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!session || isSubmitted) return
-    autoSaveRef.current = setInterval(() => { autoSaveMutation.mutate() }, AUTOSAVE_INTERVAL_MS)
-    return () => clearInterval(autoSaveRef.current!)
-  }, [session, isSubmitted]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!session || isSubmitted) return
@@ -189,7 +188,6 @@ export default function ExamPage() {
 
   useEffect(() => () => {
     clearInterval(tickRef.current!)
-    clearInterval(autoSaveRef.current!)
   }, [])
 
   const handleAnswer = useCallback((qId: string, value: string) => {

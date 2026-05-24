@@ -131,6 +131,17 @@ function DashboardContent() {
     enabled: tab === 'resources',
   })
 
+  // Fetch server time on mount to correct for device clock skew
+  useEffect(() => {
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((data: { timestamp: number }) => {
+        serverOffsetRef.current = data.timestamp - Date.now()
+        setClockDrift(Math.abs(serverOffsetRef.current) > CLOCK_DRIFT_THRESHOLD_MS)
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30_000)
     return () => clearInterval(id)

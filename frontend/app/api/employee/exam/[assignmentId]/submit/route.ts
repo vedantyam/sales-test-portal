@@ -57,13 +57,18 @@ export async function POST(request: NextRequest, { params }: { params: { assignm
   const { answers, auto } = body as { answers?: Record<string, any>; auto?: boolean }
 
   const { rows } = await db.query(
-    `SELECT status, test_id FROM test_assignments WHERE id=$1 AND employee_id=$2`,
+    `SELECT status, test_id, window_end FROM test_assignments WHERE id=$1 AND employee_id=$2`,
     [assignmentId, employeeId]
   )
 
   if (!rows[0]) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
   if (['submitted', 'auto_submitted'].includes(rows[0].status)) {
     return NextResponse.json({ error: 'Already submitted.' }, { status: 403 })
+  }
+
+  const windowEnd = new Date(rows[0].window_end).getTime()
+  if (Date.now() > windowEnd + 30_000) {
+    return NextResponse.json({ error: 'Exam window has closed' }, { status: 403 })
   }
 
   if (answers) {

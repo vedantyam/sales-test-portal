@@ -6,8 +6,8 @@ import { db } from '@/lib/db'
 export async function GET() {
   try {
     await db.query('SELECT 1')
-    return NextResponse.json({ ok: true, db: 'connected' })
+    return NextResponse.json({ ok: true, db: 'connected', timestamp: Date.now() })
   } catch {
-    return NextResponse.json({ ok: false, db: 'error' }, { status: 503 })
+    return NextResponse.json({ ok: false, db: 'error', timestamp: Date.now() }, { status: 503 })
   }
 }
