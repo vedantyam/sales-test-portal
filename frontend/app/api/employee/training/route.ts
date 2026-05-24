@@ -29,7 +29,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const employeeId = auth.user!.sub
-  const department = auth.user!.department ?? ''
+
+  // Use JWT department if present; fall back to DB lookup (refresh tokens omit department)
+  let department = auth.user!.department ?? ''
+  if (!department) {
+    const { rows: emp } = await db.query<{ department: string }>(
+      `SELECT department FROM employees WHERE id = $1`,
+      [employeeId]
+    )
+    department = emp[0]?.department ?? ''
+  }
 
   const { rows } = await db.query<TopicRow>(
     `SELECT
