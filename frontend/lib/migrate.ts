@@ -138,6 +138,48 @@ const statements = [
   `ALTER TABLE resources ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES resource_folders(id)`,
 
   `ALTER TABLE results ADD COLUMN IF NOT EXISTS subjective_scores JSONB DEFAULT '{}'`,
+
+  `CREATE TABLE IF NOT EXISTS training_courses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    departments TEXT[] NOT NULL DEFAULT '{"Sales","Support"}',
+    order_index INTEGER DEFAULT 0,
+    created_by UUID REFERENCES admins(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS training_chapters (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id UUID NOT NULL REFERENCES training_courses(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    order_index INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS training_topics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chapter_id UUID NOT NULL REFERENCES training_chapters(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    youtube_url TEXT,
+    doc_url TEXT,
+    notes TEXT,
+    order_index INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS training_progress (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    topic_id UUID NOT NULL REFERENCES training_topics(id) ON DELETE CASCADE,
+    completed_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(employee_id, topic_id)
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_training_chapters_course ON training_chapters(course_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_training_topics_chapter ON training_topics(chapter_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_training_progress_employee ON training_progress(employee_id)`,
 ]
 
 async function doMigrations(): Promise<void> {

@@ -8,6 +8,7 @@ import { useAuthStore } from '../../../store/authStore'
 import { Assignment, ResourceFolder, Resource } from '../../../types'
 import Badge from '../../../components/ui/Badge'
 import Button from '../../../components/ui/Button'
+import TrainingTab from '../../../components/employee/TrainingTab'
 
 const CLOCK_DRIFT_THRESHOLD_MS = 30_000
 
@@ -93,7 +94,7 @@ function DashboardContent() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const clearAuth = useAuthStore((s) => s.clearAuth)
-  const [tab, setTab] = useState<'tests' | 'resources'>('tests')
+  const [tab, setTab] = useState<'tests' | 'resources' | 'training'>('tests')
   const [clockDrift, setClockDrift] = useState(false)
   const [, setTick] = useState(0)
   const [openFolders, setOpenFolders] = useState<string[]>([])
@@ -175,7 +176,7 @@ function DashboardContent() {
 
       <main className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
-          {(['tests', 'resources'] as const).map((t) => (
+          {(['tests', 'resources', 'training'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -183,7 +184,7 @@ function DashboardContent() {
                 tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t === 'tests' ? 'My Tests' : 'Resources'}
+              {t === 'tests' ? 'My Tests' : t === 'resources' ? 'Resources' : 'Training'}
             </button>
           ))}
         </div>
@@ -350,6 +351,8 @@ function DashboardContent() {
             )}
           </div>
         )}
+
+        {tab === 'training' && <TrainingTab />}
       </main>
     </div>
   )
