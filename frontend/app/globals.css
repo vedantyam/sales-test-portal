@@ -21,8 +21,37 @@
   }
 }
 
+/* ── Print: show ONLY the quotation preview ─────────────────────────── */
 @media print {
-  .no-print { display: none !important; }
-  body { background: white !important; }
-  @page { size: A4; margin: 10mm; }
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  /* Hide everything, then reveal only the quotation print area */
+  body * {
+    visibility: hidden !important;
+  }
+
+  #quotation-print-area,
+  #quotation-print-area * {
+    visibility: visible !important;
+  }
+
+  #quotation-print-area {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    background: white !important;
+    /* Preserve background colours (dark header, blue bars) */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Features 2-column layout in print to save vertical space */
+  .qt-features {
+    column-count: 2 !important;
+    column-gap: 6px !important;
+  }
 }
