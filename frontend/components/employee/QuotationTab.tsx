@@ -92,7 +92,6 @@ export default function QuotationTab() {
   const [signatureImageUrl, setSignatureImageUrl] = useState<string | null>(null)
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [whatsAppToast, setWhatsAppToast] = useState(false)
 
   useEffect(() => {
     api.get('/employee/profile').then((r) => {
@@ -202,12 +201,9 @@ export default function QuotationTab() {
   }
 
   function handleWhatsApp() {
-    handleDownloadPDF()
-    setWhatsAppToast(true)
-    setTimeout(() => {
-      window.open(`https://wa.me/?text=${encodeURIComponent(buildWhatsAppMsg())}`, '_blank')
-      setTimeout(() => setWhatsAppToast(false), 6000)
-    }, 1500)
+    const digits = clientPhone.replace(/\D/g, '')
+    const phone = digits.startsWith('91') ? digits : `91${digits}`
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsAppMsg())}`, '_blank')
   }
 
   function loadHistoryRow(q: QuotationRow) {
@@ -271,14 +267,6 @@ export default function QuotationTab() {
             )}
           </button>
         </div>
-
-        {/* WhatsApp toast */}
-        {whatsAppToast && (
-          <div className="flex-shrink-0 mb-2 no-print bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-xs text-green-800 flex items-center justify-between">
-            <span>PDF download triggered — open WhatsApp, find the chat, tap the attachment icon and attach the PDF from your downloads.</span>
-            <button onClick={() => setWhatsAppToast(false)} className="ml-3 text-green-600 hover:text-green-900">✕</button>
-          </div>
-        )}
 
         {/* Split screen — fills remaining height */}
         <div className="flex gap-3 flex-1 min-h-0 print:block print:h-auto">
@@ -414,14 +402,9 @@ export default function QuotationTab() {
                     Download PDF
                   </button>
                 </div>
-                <div className="relative group">
-                  <button onClick={handleWhatsApp} className="w-full bg-green-600 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-green-700">
-                    Send via WhatsApp
-                  </button>
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center shadow-lg z-10">
-                    Triggers PDF download then opens WhatsApp — attach the PDF from your downloads folder.
-                  </div>
-                </div>
+                <button onClick={handleWhatsApp} className="w-full bg-green-600 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-green-700">
+                  Send via WhatsApp
+                </button>
               </div>
             )}
           </div>
