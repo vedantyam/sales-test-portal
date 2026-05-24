@@ -9,6 +9,7 @@ import { Assignment, ResourceFolder, Resource } from '../../../types'
 import Badge from '../../../components/ui/Badge'
 import Button from '../../../components/ui/Button'
 import TrainingTab from '../../../components/employee/TrainingTab'
+import QuotationTab from '../../../components/employee/QuotationTab'
 
 const CLOCK_DRIFT_THRESHOLD_MS = 30_000
 
@@ -94,7 +95,7 @@ function DashboardContent() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const clearAuth = useAuthStore((s) => s.clearAuth)
-  const [tab, setTab] = useState<'tests' | 'resources' | 'training'>('tests')
+  const [tab, setTab] = useState<'tests' | 'resources' | 'training' | 'quotation'>('tests')
   const [clockDrift, setClockDrift] = useState(false)
   const [, setTick] = useState(0)
   const [openFolders, setOpenFolders] = useState<string[]>([])
@@ -158,7 +159,7 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 no-print">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Welcome, {user?.name}</h1>
@@ -174,9 +175,9 @@ function DashboardContent() {
         </div>
       )}
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
-        <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
-          {(['tests', 'resources', 'training'] as const).map((t) => (
+      <main className={`mx-auto px-4 py-8 ${tab === 'quotation' ? 'max-w-7xl' : 'max-w-5xl'}`}>
+        <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit no-print">
+          {(['tests', 'resources', 'training', 'quotation'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -184,7 +185,7 @@ function DashboardContent() {
                 tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t === 'tests' ? 'My Tests' : t === 'resources' ? 'Resources' : 'Training'}
+              {t === 'tests' ? 'My Tests' : t === 'resources' ? 'Resources' : t === 'training' ? 'Training' : 'Quotation'}
             </button>
           ))}
         </div>
@@ -353,6 +354,8 @@ function DashboardContent() {
         )}
 
         {tab === 'training' && <TrainingTab />}
+
+        {tab === 'quotation' && <QuotationTab />}
       </main>
     </div>
   )

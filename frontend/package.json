@@ -13,6 +13,7 @@
     "@dnd-kit/sortable": "^8",
     "@dnd-kit/utilities": "^3",
     "@tanstack/react-query": "^5",
+    "@types/recharts": "^1.8.29",
     "axios": "^1",
     "bcrypt": "^5",
     "clsx": "^2",
@@ -24,6 +25,7 @@
     "pg": "^8",
     "react": "^18",
     "react-dom": "^18",
+    "recharts": "^3.8.1",
     "tailwind-merge": "^2",
     "xlsx": "^0.18.5",
     "zustand": "^4"

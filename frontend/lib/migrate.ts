@@ -180,6 +180,63 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_training_chapters_course ON training_chapters(course_id)`,
   `CREATE INDEX IF NOT EXISTS idx_training_topics_chapter ON training_topics(chapter_id)`,
   `CREATE INDEX IF NOT EXISTS idx_training_progress_employee ON training_progress(employee_id)`,
+
+  // ── Quotation module ──────────────────────────────────────────────────────
+  `CREATE SEQUENCE IF NOT EXISTS quote_number_seq START 1`,
+
+  `CREATE TABLE IF NOT EXISTS quotations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quote_number TEXT UNIQUE NOT NULL DEFAULT 'QT-' || LPAD(nextval('quote_number_seq')::TEXT, 6, '0'),
+    employee_id UUID REFERENCES employees(id) ON DELETE CASCADE,
+    client_name TEXT NOT NULL,
+    client_address TEXT,
+    client_phone TEXT,
+    place_of_supply TEXT,
+    plan_name TEXT NOT NULL,
+    plan_rate NUMERIC NOT NULL,
+    patient_registrations TEXT,
+    features JSONB NOT NULL DEFAULT '[]',
+    sub_total NUMERIC NOT NULL,
+    igst_amount NUMERIC NOT NULL,
+    total_amount NUMERIC NOT NULL,
+    quote_date DATE NOT NULL,
+    expiry_date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS salesperson_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID UNIQUE REFERENCES employees(id) ON DELETE CASCADE,
+    display_name TEXT,
+    email TEXT,
+    updated_at TIMESTAMPTZ DEFAULT now()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS company_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    signature_image_url TEXT,
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    updated_by UUID REFERENCES employees(id)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS quotation_activity_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID REFERENCES employees(id),
+    quotation_id UUID REFERENCES quotations(id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    details JSONB,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )`,
+
+  `INSERT INTO company_settings (id)
+   SELECT gen_random_uuid()
+   WHERE NOT EXISTS (SELECT 1 FROM company_settings LIMIT 1)`,
+
+  `CREATE INDEX IF NOT EXISTS idx_quotations_employee ON quotations(employee_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_qal_quotation ON quotation_activity_logs(quotation_id)`,
 ]
 
 async function doMigrations(): Promise<void> {
