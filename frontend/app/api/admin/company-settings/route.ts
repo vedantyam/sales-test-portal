@@ -20,19 +20,24 @@ export async function PUT(request: NextRequest) {
   if (auth.error) return auth.error
 
   const body = await request.json().catch(() => ({}))
-  const { signature_image_url } = body
 
-  const { rows: existing } = await db.query(`SELECT id FROM company_settings LIMIT 1`)
+  const { rows: existing } = await db.query(
+    `SELECT id, signature_image_url, logo_image_url FROM company_settings LIMIT 1`
+  )
 
-  if (existing[0]) {
+  const current = existing[0]
+  const newSig = 'signature_image_url' in body ? (body.signature_image_url ?? null) : (current?.signature_image_url ?? null)
+  const newLogo = 'logo_image_url' in body ? (body.logo_image_url ?? null) : (current?.logo_image_url ?? null)
+
+  if (current) {
     await db.query(
-      `UPDATE company_settings SET signature_image_url = $1, updated_at = now() WHERE id = $2`,
-      [signature_image_url || null, existing[0].id]
+      `UPDATE company_settings SET signature_image_url = $1, logo_image_url = $2, updated_at = now() WHERE id = $3`,
+      [newSig, newLogo, current.id]
     )
   } else {
     await db.query(
-      `INSERT INTO company_settings (signature_image_url) VALUES ($1)`,
-      [signature_image_url || null]
+      `INSERT INTO company_settings (signature_image_url, logo_image_url) VALUES ($1, $2)`,
+      [newSig, newLogo]
     )
   }
 

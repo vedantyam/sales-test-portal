@@ -56,28 +56,36 @@ interface ActivityLog {
 
 const PIE_COLORS = ['#3b5bdb', '#4dabf7', '#74c0fc', '#a5d8ff', '#d0ebff']
 
-// ─── Signature Settings sub-tab ──────────────────────────────────────────────
+// ─── Settings sub-tab ────────────────────────────────────────────────────────
 
-function SettingsTab() {
-  const queryClient = useQueryClient()
+function ImageUploadCard({
+  title,
+  description,
+  fieldKey,
+  currentUrl,
+  accept,
+  previewMaxH,
+  onSaved,
+}: {
+  title: string
+  description: string
+  fieldKey: 'signature_image_url' | 'logo_image_url'
+  currentUrl: string | null
+  accept: string
+  previewMaxH: number
+  onSaved: () => void
+}) {
   const [preview, setPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const { data } = useQuery({
-    queryKey: ['admin-company-settings'],
-    queryFn: async () => {
-      const res = await adminApi.get('/admin/company-settings')
-      return res.data.settings
-    },
-  })
-
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!['image/png', 'image/jpeg'].includes(file.type)) {
-      setToast('PNG or JPG only')
+    const validTypes = accept.split(',').map((t) => t.trim())
+    if (!validTypes.includes(file.type)) {
+      setToast(`Allowed: ${accept}`)
       return
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -90,11 +98,12 @@ function SettingsTab() {
   }
 
   async function handleSave() {
-    const url = preview || data?.signature_image_url || null
+    const url = preview ?? currentUrl ?? null
     setSaving(true)
     try {
-      await adminApi.put('/admin/company-settings', { signature_image_url: url })
-      queryClient.invalidateQueries({ queryKey: ['admin-company-settings'] })
+      await adminApi.put('/admin/company-settings', { [fieldKey]: url })
+      setPreview(null)
+      onSaved()
       setToast('Saved!')
       setTimeout(() => setToast(''), 3000)
     } catch {
@@ -105,57 +114,93 @@ function SettingsTab() {
     }
   }
 
-  const currentSig = preview || data?.signature_image_url
+  const displayUrl = preview ?? currentUrl
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">{title}</h3>
+        <p className="text-xs text-gray-500">{description}</p>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-gray-500 mb-2">Current</p>
+        {displayUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={displayUrl}
+            alt={title}
+            style={{ maxHeight: previewMaxH, objectFit: 'contain' }}
+            className="border border-gray-200 rounded-lg p-2"
+          />
+        ) : (
+          <p className="text-sm text-gray-400 italic">Nothing uploaded yet.</p>
+        )}
+      </div>
+
+      <div>
+        <input ref={fileRef} type="file" accept={accept} className="hidden" onChange={handleFile} />
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+        >
+          Upload PNG / JPG / SVG (max 2MB)
+        </button>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : `Save ${title}`}
+        </button>
+        {toast && (
+          <span className={`text-xs ${toast === 'Saved!' ? 'text-green-600' : 'text-red-600'}`}>
+            {toast}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SettingsTab() {
+  const queryClient = useQueryClient()
+
+  const { data } = useQuery({
+    queryKey: ['admin-company-settings'],
+    queryFn: async () => {
+      const res = await adminApi.get('/admin/company-settings')
+      return res.data.settings
+    },
+  })
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ['admin-company-settings'] })
+  }
 
   return (
     <div className="max-w-lg space-y-6">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-1">Authorized Signature</h3>
-        <p className="text-xs text-gray-500">Appears on all employee quotations.</p>
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-        <div>
-          <p className="text-xs font-medium text-gray-500 mb-2">Current Signature</p>
-          {currentSig ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={currentSig} alt="Signature" className="max-h-16 border border-gray-200 rounded-lg p-2" />
-          ) : (
-            <p className="text-sm text-gray-400 italic">No signature uploaded yet.</p>
-          )}
-        </div>
-
-        <div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/png,image/jpeg"
-            className="hidden"
-            onChange={handleFile}
-          />
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-          >
-            Upload PNG / JPG (max 2MB)
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save Signature'}
-          </button>
-          {toast && (
-            <span className={`text-xs ${toast.includes('fail') || toast.includes('only') || toast.includes('Max') ? 'text-red-600' : 'text-green-600'}`}>
-              {toast}
-            </span>
-          )}
-        </div>
-      </div>
+      <ImageUploadCard
+        title="Company Logo"
+        description="Shown in the header of all quotations. PNG, JPG, or SVG recommended."
+        fieldKey="logo_image_url"
+        currentUrl={data?.logo_image_url ?? null}
+        accept="image/png,image/jpeg,image/svg+xml"
+        previewMaxH={48}
+        onSaved={invalidate}
+      />
+      <ImageUploadCard
+        title="Authorized Signature"
+        description="Appears at the bottom of all employee quotations."
+        fieldKey="signature_image_url"
+        currentUrl={data?.signature_image_url ?? null}
+        accept="image/png,image/jpeg"
+        previewMaxH={64}
+        onSaved={invalidate}
+      />
     </div>
   )
 }

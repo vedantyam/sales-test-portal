@@ -237,6 +237,8 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_quotations_employee ON quotations(employee_id)`,
   `CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status)`,
   `CREATE INDEX IF NOT EXISTS idx_qal_quotation ON quotation_activity_logs(quotation_id)`,
+
+  `ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS logo_image_url TEXT`,
 ]
 
 async function doMigrations(): Promise<void> {
