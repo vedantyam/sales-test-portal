@@ -30,6 +30,7 @@ export interface QuotationPreviewProps {
   quoteDate?: string
   expiryDate?: string
   signatureImageUrl?: string | null
+  logoImageUrl?: string | null
 }
 
 function formatDate(d?: string): string {
@@ -52,6 +53,7 @@ export default function QuotationPreview({
   quoteDate,
   expiryDate,
   signatureImageUrl,
+  logoImageUrl,
 }: QuotationPreviewProps) {
   const igst = Math.round(rate * 0.18)
   const total = rate + igst

@@ -11,8 +11,11 @@ export async function GET(request: NextRequest) {
   if (auth.error) return auth.error
 
   const { rows } = await db.query(
-    `SELECT signature_image_url FROM company_settings LIMIT 1`
+    `SELECT signature_image_url, logo_image_url FROM company_settings LIMIT 1`
   )
 
-  return NextResponse.json({ signature_image_url: rows[0]?.signature_image_url || null })
+  return NextResponse.json({
+    signature_image_url: rows[0]?.signature_image_url || null,
+    logo_image_url: rows[0]?.logo_image_url || null,
+  })
 }
