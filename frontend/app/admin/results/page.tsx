@@ -18,16 +18,25 @@ interface TestSummary {
   last_submission: string
 }
 
+interface QuestionPart {
+  id: string
+  text: string
+  marks: number
+}
+
 interface EmployeeAnswer {
   question_id: string
   question_text: string
-  question_type: 'mcq' | 'subjective'
+  question_type: 'mcq' | 'subjective' | 'parts'
   marks: number
   answer: string | null
   correct_answer?: string
   is_correct?: boolean
   awarded_marks: number | null
   employee_explanation?: string
+  parts?: QuestionPart[]
+  part_answers?: Array<{ part_id: string; text: string }>
+  part_scores?: Array<{ part_id: string; score: number }>
 }
 
 interface EmployeeResult {
@@ -38,6 +47,7 @@ interface EmployeeResult {
   result_id: string | null
   mcq_score: number | null
   subjective_scores: Record<string, number>
+  part_scores: Record<string, Array<{ part_id: string; score: number }>>
   total_score: number | null
   max_score: number | null
   pass_fail: 'pass' | 'fail' | null
@@ -59,6 +69,7 @@ export default function ResultsPage() {
   const [selectedTestTitle, setSelectedTestTitle] = useState('')
   const [search, setSearch] = useState('')
   const [scores, setScores] = useState<Record<string, Record<string, number>>>({})
+  const [pendingPartScores, setPendingPartScores] = useState<Record<string, Record<string, Record<string, number>>>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [importing, setImporting] = useState(false)
@@ -91,8 +102,12 @@ export default function ResultsPage() {
   )
 
   const scoreMutation = useMutation({
-    mutationFn: async ({ resultId, questionId, marks }: { resultId: string; questionId: string; marks: number }) => {
-      await adminApi.patch(`/admin/results/${resultId}/score`, { question_id: questionId, marks })
+    mutationFn: async ({ resultId, questionId, marks, part_scores }: { resultId: string; questionId: string; marks?: number; part_scores?: Array<{ part_id: string; score: number }> }) => {
+      if (part_scores !== undefined) {
+        await adminApi.patch(`/admin/results/${resultId}/score`, { question_id: questionId, part_scores })
+      } else {
+        await adminApi.patch(`/admin/results/${resultId}/score`, { question_id: questionId, marks })
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['results-by-test-detail', selectedTestId] })
@@ -184,6 +199,33 @@ export default function ResultsPage() {
     const val = scores[resultId]?.[questionId]
     if (val === undefined) return
     scoreMutation.mutate({ resultId, questionId, marks: Math.min(Math.max(0, val), maxMarks) })
+  }
+
+  function setPendingPartScore(resultId: string, questionId: string, partId: string, val: string) {
+    const n = parseFloat(val)
+    if (!isNaN(n)) {
+      setPendingPartScores(prev => ({
+        ...prev,
+        [resultId]: {
+          ...(prev[resultId] || {}),
+          [questionId]: {
+            ...((prev[resultId] || {})[questionId] || {}),
+            [partId]: n,
+          },
+        },
+      }))
+    }
+  }
+
+  function savePartScores(resultId: string, questionId: string, parts: QuestionPart[], savedScores: Array<{ part_id: string; score: number }>) {
+    const pending = (pendingPartScores[resultId] || {})[questionId] || {}
+    const partScoresArr = parts.map(p => {
+      const pendingVal = pending[p.id]
+      const savedVal = savedScores.find(s => s.part_id === p.id)?.score
+      const score = pendingVal !== undefined ? pendingVal : (savedVal ?? 0)
+      return { part_id: p.id, score: Math.min(Math.max(0, score), p.marks) }
+    })
+    scoreMutation.mutate({ resultId, questionId, marks: 0, part_scores: partScoresArr } as any)
   }
 
   function toggleExpand(employeeId: string) {
@@ -306,10 +348,16 @@ export default function ResultsPage() {
               ) : (
                 employees.map(emp => {
                   const subjectiveAnswers = emp.answers.filter(a => a.question_type === 'subjective')
+                  const partsAnswers = emp.answers.filter(a => a.question_type === 'parts')
                   const mcqAnswers = emp.answers.filter(a => a.question_type === 'mcq')
                   const allSubjectiveScored = subjectiveAnswers.length === 0 ||
                     subjectiveAnswers.every(a => emp.subjective_scores[a.question_id] != null)
-                  const canFinalise = !emp.is_finalised && emp.result_id !== null && allSubjectiveScored
+                  const allPartsScored = partsAnswers.length === 0 ||
+                    partsAnswers.every(a => {
+                      const savedScores = (emp.part_scores || {})[a.question_id] ?? []
+                      return (a.parts ?? []).every(p => savedScores.some(s => s.part_id === p.id))
+                    })
+                  const canFinalise = !emp.is_finalised && emp.result_id !== null && allSubjectiveScored && allPartsScored
                   const isExpanded = expanded.has(emp.employee_id)
 
                   return (
@@ -343,7 +391,7 @@ export default function ResultsPage() {
                             <Button
                               size="sm"
                               disabled={!canFinalise || finaliseMutation.isPending}
-                              title={!allSubjectiveScored ? 'Score all subjective questions first' : undefined}
+                              title={!allSubjectiveScored ? 'Score all subjective questions first' : !allPartsScored ? 'Score all parts questions first' : undefined}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 if (confirm(`Finalise result for ${emp.employee_name}?`)) {
@@ -444,6 +492,91 @@ export default function ResultsPage() {
                                             <span className="text-xs text-green-600">Saved: {savedScore}</span>
                                           )}
                                         </div>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Parts scoring */}
+                          {partsAnswers.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                                Part-based — {partsAnswers.length} question{partsAnswers.length !== 1 ? 's' : ''}
+                              </p>
+                              <div className="space-y-4">
+                                {partsAnswers.map((ans) => {
+                                  const parts = ans.parts ?? []
+                                  const savedScores: Array<{ part_id: string; score: number }> = (emp.part_scores || {})[ans.question_id] ?? []
+                                  const totalSaved = savedScores.reduce((s, ps) => s + ps.score, 0)
+                                  const pendingForQ = (pendingPartScores[emp.result_id ?? ''] || {})[ans.question_id] || {}
+                                  const LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+                                  return (
+                                    <div key={ans.question_id} className="border border-indigo-100 rounded-lg p-3 space-y-3">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <p className="text-sm font-medium text-gray-800">{ans.question_text}</p>
+                                        <span className="text-xs text-gray-400 flex-shrink-0">{ans.marks} marks total</span>
+                                      </div>
+                                      {parts.map((part, pi) => {
+                                        const partAnswer = (ans.part_answers ?? []).find(pa => pa.part_id === part.id)
+                                        const savedPartScore = savedScores.find(s => s.part_id === part.id)?.score
+                                        const pendingVal = pendingForQ[part.id]
+                                        const displayVal = pendingVal !== undefined ? pendingVal : savedPartScore
+
+                                        return (
+                                          <div key={part.id} className="bg-gray-50 rounded p-2 space-y-1">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs font-bold bg-gray-700 text-white px-1.5 py-0.5 rounded">
+                                                Part {LABELS[pi] ?? String(pi + 1)}
+                                              </span>
+                                              <p className="text-xs text-gray-600">{part.text}</p>
+                                              <span className="ml-auto text-xs text-gray-400">/{part.marks}m</span>
+                                            </div>
+                                            <div className="text-xs text-gray-700 bg-white rounded p-1.5 min-h-[1.5rem] whitespace-pre-wrap">
+                                              {partAnswer?.text || <em className="text-gray-400">No answer</em>}
+                                            </div>
+                                            {emp.is_finalised ? (
+                                              <p className="text-xs text-gray-500">
+                                                Awarded: <strong>{savedPartScore ?? '—'}</strong> / {part.marks}
+                                              </p>
+                                            ) : (
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-xs text-gray-500">Score:</span>
+                                                <input
+                                                  type="number"
+                                                  min={0}
+                                                  max={part.marks}
+                                                  step={0.5}
+                                                  value={displayVal ?? ''}
+                                                  onChange={e => emp.result_id && setPendingPartScore(emp.result_id, ans.question_id, part.id, e.target.value)}
+                                                  className="w-14 text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                />
+                                                <span className="text-xs text-gray-400">/ {part.marks}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )
+                                      })}
+                                      {!emp.is_finalised && emp.result_id && (
+                                        <div className="flex items-center gap-3 pt-1">
+                                          <button
+                                            onClick={() => emp.result_id && savePartScores(emp.result_id, ans.question_id, parts, savedScores)}
+                                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                          >
+                                            Save all parts
+                                          </button>
+                                          {savedScores.length > 0 && (
+                                            <span className="text-xs text-green-600">Saved total: {totalSaved}/{ans.marks}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                      {emp.is_finalised && savedScores.length > 0 && (
+                                        <p className="text-xs text-gray-500 pt-1">
+                                          Total awarded: <strong>{totalSaved}</strong> / {ans.marks}
+                                        </p>
                                       )}
                                     </div>
                                   )

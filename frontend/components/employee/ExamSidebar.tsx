@@ -3,12 +3,14 @@
 import { cn } from '../../lib/utils'
 import ExamTimer from './ExamTimer'
 import { ShuffledSection } from '../../types'
+import { PartAnswer } from '../../store/examStore'
 
 interface ExamSidebarProps {
   sections: ShuffledSection[]
   currentSectionIdx: number
   currentQuestionIdx: number
   answers: Record<string, string>
+  partAnswers: Record<string, PartAnswer[]>
   visitedQuestions: string[]
   remainingSeconds: number
   onNavigate: (sIdx: number, qIdx: number) => void
@@ -20,13 +22,21 @@ export default function ExamSidebar({
   currentSectionIdx,
   currentQuestionIdx,
   answers,
+  partAnswers,
   visitedQuestions,
   remainingSeconds,
   onNavigate,
   onSubmit,
 }: ExamSidebarProps) {
   const totalQuestions = sections.reduce((sum, s) => sum + s.questions.length, 0)
-  const answeredCount = Object.keys(answers).length
+
+  function isQuestionAnswered(qId: string, type: string): boolean {
+    if (type === 'parts') return partAnswers[qId]?.some(p => p.text.trim()) ?? false
+    return !!answers[qId]
+  }
+
+  const answeredCount = sections.reduce((sum, s) =>
+    sum + s.questions.filter(q => isQuestionAnswered(q.id, q.type)).length, 0)
   const visitedCount = visitedQuestions.length
 
   return (
@@ -50,7 +60,7 @@ export default function ExamSidebar({
             <div className="grid grid-cols-5 gap-1.5">
               {section.questions.map((q, qIdx) => {
                 const isActive = sIdx === currentSectionIdx && qIdx === currentQuestionIdx
-                const isAnswered = !!answers[q.id]
+                const isAnswered = isQuestionAnswered(q.id, q.type)
                 const isVisited = visitedQuestions.includes(q.id)
 
                 return (

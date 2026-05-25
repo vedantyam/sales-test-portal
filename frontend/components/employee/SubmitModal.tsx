@@ -3,11 +3,13 @@
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import { ShuffledSection } from '../../types'
+import { PartAnswer } from '../../store/examStore'
 
 interface SubmitModalProps {
   open: boolean
   sections: ShuffledSection[]
   answers: Record<string, string>
+  partAnswers: Record<string, PartAnswer[]>
   onConfirm: () => void
   onCancel: () => void
   loading?: boolean
@@ -17,12 +19,19 @@ export default function SubmitModal({
   open,
   sections,
   answers,
+  partAnswers,
   onConfirm,
   onCancel,
   loading,
 }: SubmitModalProps) {
+  function isAnswered(qId: string, type: string): boolean {
+    if (type === 'parts') return partAnswers[qId]?.some(p => p.text.trim()) ?? false
+    return !!answers[qId]
+  }
+
   const totalQuestions = sections.reduce((s, sec) => s + sec.questions.length, 0)
-  const answeredCount = Object.keys(answers).length
+  const answeredCount = sections.reduce((s, sec) =>
+    s + sec.questions.filter(q => isAnswered(q.id, q.type)).length, 0)
   const unanswered = totalQuestions - answeredCount
 
   return (
@@ -34,7 +43,7 @@ export default function SubmitModal({
 
         <div className="bg-gray-50 rounded-lg p-4 space-y-2">
           {sections.map((sec) => {
-            const answered = sec.questions.filter((q) => answers[q.id]).length
+            const answered = sec.questions.filter(q => isAnswered(q.id, q.type)).length
             return (
               <div key={sec.id} className="flex justify-between text-sm">
                 <span className="text-gray-600">{sec.title}</span>

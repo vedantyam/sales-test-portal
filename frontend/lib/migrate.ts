@@ -239,6 +239,9 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_qal_quotation ON quotation_activity_logs(quotation_id)`,
 
   `ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS logo_image_url TEXT`,
+
+  // Parts question type support
+  `ALTER TABLE results ADD COLUMN IF NOT EXISTS part_scores JSONB DEFAULT '{}'`,
 ]
 
 async function doMigrations(): Promise<void> {

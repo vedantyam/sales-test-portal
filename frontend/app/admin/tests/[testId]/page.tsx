@@ -25,6 +25,7 @@ function buildInitialData(test: Test) {
         explanation: q.explanation ?? '',
         marks: q.marks,
         word_limit: q.word_limit ?? ('' as '' | number),
+        parts: q.parts ?? [],
       })),
     })),
   }

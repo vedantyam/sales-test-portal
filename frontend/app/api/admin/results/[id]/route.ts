@@ -12,7 +12,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     `SELECT r.id, r.assignment_id, r.employee_id, r.test_id,
             r.mcq_score, r.subjective_score, r.total_score, r.max_score,
             r.pass_fail, r.is_finalised, r.created_at,
-            r.subjective_scores,
+            r.subjective_scores, r.part_scores,
             e.name as employee_name, e.email as employee_email, e.department as employee_department,
             t.title as test_title, t.sections, t.pass_score_pct,
             ts.answer_buffer, ts.submitted_at
@@ -29,12 +29,31 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const row = rows[0]
   const answerBuffer: Record<string, any> = row.answer_buffer || {}
   const subjectiveScores: Record<string, number> = row.subjective_scores || {}
+  const partScores: Record<string, Array<{ part_id: string; score: number }>> = row.part_scores || {}
   const sections: any[] = row.sections || []
 
   const answers: any[] = []
   for (const section of sections) {
     for (const q of section.questions) {
       const rawVal = answerBuffer[q.id] ?? null
+
+      if (q.type === 'parts') {
+        const partAnswers = rawVal?.part_answers ?? []
+        const qPartScores = partScores[q.id] ?? []
+        const awarded = qPartScores.reduce((sum: number, ps: any) => sum + Number(ps.score || 0), 0)
+        answers.push({
+          question_id: q.id,
+          question_text: q.text,
+          question_type: 'parts',
+          marks: q.marks,
+          answer: null,
+          parts: q.parts ?? [],
+          part_answers: partAnswers,
+          part_scores: qPartScores,
+          awarded_marks: qPartScores.length > 0 ? awarded : null,
+        })
+        continue
+      }
 
       let answerStr: string | null = null
       let employeeExplanation: string | null = null

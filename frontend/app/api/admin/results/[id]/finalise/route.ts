@@ -11,7 +11,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const adminId = auth.user!.sub
 
   const { rows } = await db.query(
-    `SELECT r.*, t.pass_score_pct, t.sections
+    `SELECT r.*, t.pass_score_pct, t.sections,
+            r.part_scores
      FROM results r JOIN tests t ON t.id=r.test_id
      WHERE r.id=$1`,
     [params.id]
@@ -23,6 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const result = rows[0]
   const sections: any[] = result.sections || []
   const subjectiveScores: Record<string, number> = result.subjective_scores || {}
+  const partScores: Record<string, Array<{ part_id: string; score: number }>> = result.part_scores || {}
 
   let totalSubjectiveMax = 0
   let totalSubjectiveEarned = 0
@@ -36,6 +38,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         const maxMarks = q.marks || 2
         totalSubjectiveMax += maxMarks
         totalSubjectiveEarned += Number(subjectiveScores[q.id] || 0)
+        subjectiveCount++
+      } else if (q.type === 'parts') {
+        const qPartScores = partScores[q.id] || []
+        const earned = qPartScores.reduce((sum: number, ps: { part_id: string; score: number }) => sum + Number(ps.score || 0), 0)
+        totalSubjectiveMax += q.marks || 0
+        totalSubjectiveEarned += earned
         subjectiveCount++
       }
     }

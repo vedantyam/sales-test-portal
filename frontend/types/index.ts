@@ -13,15 +13,22 @@ export interface QuestionOption {
   text: string
 }
 
+export interface QuestionPart {
+  id: string
+  text: string
+  marks: number
+}
+
 export interface Question {
   id: string
-  type: 'mcq' | 'subjective'
+  type: 'mcq' | 'subjective' | 'parts'
   text: string
   options?: QuestionOption[]
   correct_answer?: string
   explanation?: string
   marks: number
   word_limit?: number
+  parts?: QuestionPart[]
 }
 
 export interface Section {
@@ -65,11 +72,12 @@ export interface Assignment {
 
 export interface ShuffledQuestion {
   id: string
-  type: 'mcq' | 'subjective'
+  type: 'mcq' | 'subjective' | 'parts'
   text: string
   options?: QuestionOption[]
   marks: number
   word_limit?: number
+  parts?: QuestionPart[]
 }
 
 export interface ShuffledSection {
@@ -119,13 +127,16 @@ export interface ResultDetail extends ResultSummary {
 export interface SessionAnswer {
   question_id: string
   question_text: string
-  question_type: 'mcq' | 'subjective'
+  question_type: 'mcq' | 'subjective' | 'parts'
   marks: number
   answer: string | null
   correct_answer?: string
   explanation?: string
   employee_explanation?: string
   awarded_marks: number | null
+  parts?: QuestionPart[]
+  part_answers?: Array<{ part_id: string; text: string }>
+  part_scores?: Array<{ part_id: string; score: number }>
 }
 
 export interface HRDecision {

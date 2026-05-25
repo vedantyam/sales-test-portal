@@ -17,6 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: { testId: 
       r.id as result_id,
       r.mcq_score,
       r.subjective_scores,
+      r.part_scores,
       r.total_score,
       r.max_score,
       r.pass_fail,
@@ -47,11 +48,30 @@ export async function GET(request: NextRequest, { params }: { params: { testId: 
   const employees = rows.map(row => {
     const answerBuffer: Record<string, any> = row.answer_buffer || {}
     const subjectiveScores: Record<string, number> = row.subjective_scores || {}
+    const partScores: Record<string, Array<{ part_id: string; score: number }>> = row.part_scores || {}
 
     const answers: any[] = []
     for (const section of sections) {
       for (const q of section.questions) {
         const rawVal = answerBuffer[q.id] ?? null
+
+        if (q.type === 'parts') {
+          const partAnswers = rawVal?.part_answers ?? []
+          const qPartScores = partScores[q.id] ?? []
+          const awarded = qPartScores.reduce((sum: number, ps: any) => sum + Number(ps.score || 0), 0)
+          answers.push({
+            question_id: q.id,
+            question_text: q.text,
+            question_type: 'parts',
+            marks: q.marks,
+            answer: null,
+            parts: q.parts ?? [],
+            part_answers: partAnswers,
+            part_scores: qPartScores,
+            awarded_marks: qPartScores.length > 0 ? awarded : null,
+          })
+          continue
+        }
 
         let answerStr: string | null = null
         let employeeExplanation: string | null = null
@@ -101,6 +121,7 @@ export async function GET(request: NextRequest, { params }: { params: { testId: 
       result_id: row.result_id,
       mcq_score: row.mcq_score,
       subjective_scores: subjectiveScores,
+      part_scores: partScores,
       total_score: row.total_score,
       max_score: row.max_score,
       pass_fail: row.pass_fail,

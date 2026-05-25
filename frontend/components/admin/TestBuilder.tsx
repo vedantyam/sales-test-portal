@@ -27,9 +27,15 @@ interface Option {
   text: string
 }
 
+interface Part {
+  id: string
+  text: string
+  marks: number
+}
+
 interface Question {
   id: string
-  type: 'mcq' | 'subjective'
+  type: 'mcq' | 'subjective' | 'parts'
   text: string
   options: Option[]
   correct_answer: string
@@ -37,6 +43,7 @@ interface Question {
   marks: number
   word_limit: number | ''
   expected_answer?: string
+  parts: Part[]
 }
 
 interface Section {
@@ -61,6 +68,12 @@ interface TestBuilderProps {
   onCancel: () => void
 }
 
+const PART_LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+function newPart(): Part {
+  return { id: generateId(), text: '', marks: 5 }
+}
+
 function newQuestion(): Question {
   return {
     id: generateId(),
@@ -76,6 +89,7 @@ function newQuestion(): Question {
     explanation: '',
     marks: 1,
     word_limit: '',
+    parts: [],
   }
 }
 
@@ -236,6 +250,58 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
     )
   }
 
+  // --- Parts helpers ---
+  function addPart(sectionId: string, questionId: string) {
+    setSections(prev =>
+      prev.map(s =>
+        s.id === sectionId
+          ? {
+              ...s,
+              questions: s.questions.map(q => {
+                if (q.id !== questionId) return q
+                const newParts = [...q.parts, newPart()]
+                return { ...q, parts: newParts, marks: newParts.reduce((sum, p) => sum + p.marks, 0) }
+              }),
+            }
+          : s
+      )
+    )
+  }
+
+  function removePart(sectionId: string, questionId: string, partId: string) {
+    setSections(prev =>
+      prev.map(s =>
+        s.id === sectionId
+          ? {
+              ...s,
+              questions: s.questions.map(q => {
+                if (q.id !== questionId) return q
+                const newParts = q.parts.filter(p => p.id !== partId)
+                return { ...q, parts: newParts, marks: newParts.reduce((sum, p) => sum + p.marks, 0) }
+              }),
+            }
+          : s
+      )
+    )
+  }
+
+  function updatePart(sectionId: string, questionId: string, partId: string, patch: Partial<Part>) {
+    setSections(prev =>
+      prev.map(s =>
+        s.id === sectionId
+          ? {
+              ...s,
+              questions: s.questions.map(q => {
+                if (q.id !== questionId) return q
+                const newParts = q.parts.map(p => p.id === partId ? { ...p, ...patch } : p)
+                return { ...q, parts: newParts, marks: newParts.reduce((sum, p) => sum + p.marks, 0) }
+              }),
+            }
+          : s
+      )
+    )
+  }
+
   // --- Validation ---
   function validateStep1() {
     const e: Record<string, string> = {}
@@ -250,13 +316,25 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
       if (sec.questions.length === 0) e[`sec_${si}_questions`] = `Section ${si + 1}: add at least one question`
       sec.questions.forEach((q, qi) => {
         if (!q.text.trim()) e[`q_${q.id}_text`] = `Section ${si + 1} Q${qi + 1}: text required`
-        if (q.marks < 1) e[`q_${q.id}_marks`] = `Section ${si + 1} Q${qi + 1}: marks must be >= 1`
         if (q.type === 'mcq') {
+          if (q.marks < 1) e[`q_${q.id}_marks`] = `Section ${si + 1} Q${qi + 1}: marks must be >= 1`
           if (q.options.some((o) => !o.text.trim())) {
             e[`q_${q.id}_options`] = `Section ${si + 1} Q${qi + 1}: all option texts required`
           }
           if (!q.correct_answer) {
             e[`q_${q.id}_answer`] = `Section ${si + 1} Q${qi + 1}: select correct answer`
+          }
+        } else if (q.type === 'subjective') {
+          if (q.marks < 1) e[`q_${q.id}_marks`] = `Section ${si + 1} Q${qi + 1}: marks must be >= 1`
+        } else if (q.type === 'parts') {
+          if (q.parts.length < 2) {
+            e[`q_${q.id}_parts`] = `Section ${si + 1} Q${qi + 1}: add at least 2 parts`
+          }
+          if (q.parts.some(p => !p.text.trim())) {
+            e[`q_${q.id}_parts_text`] = `Section ${si + 1} Q${qi + 1}: all part texts required`
+          }
+          if (q.parts.some(p => p.marks < 1)) {
+            e[`q_${q.id}_parts_marks`] = `Section ${si + 1} Q${qi + 1}: all part marks must be >= 1`
           }
         }
       })
@@ -297,7 +375,7 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
         title: s.name,
         questions: s.questions.map((q: any) => ({
           id: q.id,
-          type: q.type as 'mcq' | 'subjective',
+          type: q.type as 'mcq' | 'subjective' | 'parts',
           text: q.text,
           options: q.options ?? [],
           correct_answer: q.correct_answer ?? '',
@@ -305,6 +383,7 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
           marks: q.marks,
           word_limit: '' as '' | number,
           expected_answer: q.expected_answer,
+          parts: q.parts ?? [],
         })),
       }))
 
@@ -447,27 +526,45 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
                                 <span className="text-xs font-semibold text-gray-500 flex-shrink-0">Q{qi + 1}</span>
                                 <select
                                   value={q.type}
-                                  onChange={(e) =>
-                                    updateQuestion(sec.id, q.id, {
-                                      type: e.target.value as 'mcq' | 'subjective',
-                                      correct_answer: '',
-                                    })
-                                  }
+                                  onChange={(e) => {
+                                    const t = e.target.value as 'mcq' | 'subjective' | 'parts'
+                                    if (t === 'parts') {
+                                      updateQuestion(sec.id, q.id, {
+                                        type: t,
+                                        correct_answer: '',
+                                        parts: [newPart(), newPart()],
+                                        marks: newPart().marks * 2,
+                                      })
+                                    } else {
+                                      updateQuestion(sec.id, q.id, {
+                                        type: t,
+                                        correct_answer: '',
+                                        parts: [],
+                                      })
+                                    }
+                                  }}
                                   className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 >
                                   <option value="mcq">MCQ</option>
                                   <option value="subjective">Subjective</option>
+                                  <option value="parts">Part-based</option>
                                 </select>
-                                <input
-                                  type="number"
-                                  value={q.marks}
-                                  onChange={(e) =>
-                                    updateQuestion(sec.id, q.id, { marks: parseInt(e.target.value) || 1 })
-                                  }
-                                  min={1}
-                                  className="w-20 text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  placeholder="Marks"
-                                />
+                                {q.type !== 'parts' ? (
+                                  <input
+                                    type="number"
+                                    value={q.marks}
+                                    onChange={(e) =>
+                                      updateQuestion(sec.id, q.id, { marks: parseInt(e.target.value) || 1 })
+                                    }
+                                    min={1}
+                                    className="w-20 text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    placeholder="Marks"
+                                  />
+                                ) : (
+                                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                    {q.marks}m (auto)
+                                  </span>
+                                )}
                                 {sec.questions.length > 1 && (
                                   <button
                                     type="button"
@@ -523,6 +620,54 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
                                   min={1}
                                   className="w-40 text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 />
+                              )}
+
+                              {q.type === 'parts' && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-xs font-semibold text-gray-600">
+                                      Parts <span className="text-gray-400 font-normal">(total: {q.marks} marks)</span>
+                                    </p>
+                                  </div>
+                                  {q.parts.map((part, pi) => (
+                                    <div key={part.id} className="flex items-start gap-2 bg-gray-50 rounded-lg p-2">
+                                      <span className="text-xs font-bold text-gray-500 mt-2 flex-shrink-0 w-12">
+                                        Part {PART_LABELS[pi] ?? String(pi + 1)}
+                                      </span>
+                                      <input
+                                        value={part.text}
+                                        onChange={(e) => updatePart(sec.id, q.id, part.id, { text: e.target.value })}
+                                        placeholder="Part question text..."
+                                        className="flex-1 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                      <input
+                                        type="number"
+                                        value={part.marks}
+                                        onChange={(e) => updatePart(sec.id, q.id, part.id, { marks: parseInt(e.target.value) || 1 })}
+                                        min={1}
+                                        className="w-16 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        placeholder="Marks"
+                                      />
+                                      <span className="text-xs text-gray-400 mt-2">m</span>
+                                      {q.parts.length > 2 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => removePart(sec.id, q.id, part.id)}
+                                          className="text-red-400 hover:text-red-600 mt-1 flex-shrink-0"
+                                        >
+                                          ✕
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => addPart(sec.id, q.id)}
+                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                  >
+                                    + Add Part
+                                  </button>
+                                </div>
                               )}
 
                               <input
@@ -606,7 +751,7 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
                     <p className="text-gray-800">
                       <span className="font-medium">Q{qi + 1}.</span> {q.text}
                       <span className="ml-2 text-gray-400">
-                        [{q.type.toUpperCase()} · {q.marks}m]
+                        [{q.type === 'parts' ? 'PARTS' : q.type.toUpperCase()} · {q.marks}m]
                       </span>
                     </p>
                     {q.type === 'mcq' && (
@@ -618,6 +763,15 @@ export default function TestBuilder({ initialData, onSave, onCancel }: TestBuild
                           >
                             {opt.id === q.correct_answer ? '✓ ' : '○ '}
                             {opt.text}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {q.type === 'parts' && (
+                      <ul className="ml-6 mt-1 space-y-0.5">
+                        {q.parts.map((p, pi) => (
+                          <li key={p.id} className="text-gray-500 text-xs">
+                            Part {PART_LABELS[pi] ?? String(pi + 1)}: {p.text} ({p.marks}m)
                           </li>
                         ))}
                       </ul>

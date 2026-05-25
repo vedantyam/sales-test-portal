@@ -9,6 +9,7 @@ import { ExamSession, ShuffledSection } from '../../../../types'
 import ExamSidebar from '../../../../components/employee/ExamSidebar'
 import MCQQuestion from '../../../../components/employee/MCQQuestion'
 import SubjectiveQuestion from '../../../../components/employee/SubjectiveQuestion'
+import PartsQuestion from '../../../../components/employee/PartsQuestion'
 import SubmitModal from '../../../../components/employee/SubmitModal'
 import Button from '../../../../components/ui/Button'
 
@@ -17,15 +18,22 @@ const TAB_VIOLATION_LIMIT = 3
 function buildAnswerBuffer(
   sections: ShuffledSection[],
   answers: Record<string, string>,
-  explanations: Record<string, string>
+  explanations: Record<string, string>,
+  partAnswers: Record<string, Array<{ part_id: string; text: string }>>
 ): Record<string, unknown> {
   const buf: Record<string, unknown> = {}
   for (const sec of sections) {
     for (const q of sec.questions) {
-      if (answers[q.id] === undefined) continue
-      if (q.type === 'mcq') {
+      if (q.type === 'parts') {
+        const pa = partAnswers[q.id]
+        if (pa?.some(p => p.text.trim())) {
+          buf[q.id] = { part_answers: pa }
+        }
+      } else if (q.type === 'mcq') {
+        if (answers[q.id] === undefined) continue
         buf[q.id] = { answer: answers[q.id], explanation: explanations[q.id] || undefined }
       } else {
+        if (answers[q.id] === undefined) continue
         buf[q.id] = answers[q.id]
       }
     }
@@ -42,10 +50,11 @@ export default function ExamPage() {
   const assignmentId = params.assignmentId as string
 
   const {
-    answers, explanations, visitedQuestions,
+    answers, explanations, partAnswers, visitedQuestions,
     currentSectionIdx, currentQuestionIdx,
     remainingSeconds, isSubmitted,
-    setAnswer, clearAnswer, setExplanation, markVisited, navigate,
+    setAnswer, clearAnswer, setExplanation, setPartAnswer, clearPartAnswers,
+    markVisited, navigate,
     setRemaining, markSubmitted, reset,
   } = useExamStore()
 
@@ -59,6 +68,8 @@ export default function ExamPage() {
   answersRef.current = answers
   const explanationsRef = useRef(explanations)
   explanationsRef.current = explanations
+  const partAnswersRef = useRef(partAnswers)
+  partAnswersRef.current = partAnswers
   const sessionRef = useRef<ExamSession | null>(null)
   const clockOffsetRef = useRef<number>(0)
   const windowEndRef = useRef<number>(0)
@@ -90,7 +101,7 @@ export default function ExamPage() {
   const submitMutation = useMutation({
     mutationFn: async (isAuto: boolean) => {
       const sections = sessionRef.current?.sections ?? []
-      const buffer = buildAnswerBuffer(sections, answersRef.current, explanationsRef.current)
+      const buffer = buildAnswerBuffer(sections, answersRef.current, explanationsRef.current, partAnswersRef.current)
       await api.patch(`/employee/exam/${assignmentId}/save`, { answers: buffer })
       await api.post(`/employee/exam/${assignmentId}/submit`, { answers: buffer, auto: isAuto })
     },
@@ -117,10 +128,17 @@ export default function ExamPage() {
       const serverAnswers: Record<string, string> = {}
       const serverExplanations: Record<string, string> = {}
       for (const [qId, val] of Object.entries(session.answers)) {
-        if (typeof val === 'object' && val !== null && 'answer' in (val as Record<string, unknown>)) {
-          const v = val as Record<string, string>
-          if (v.answer) serverAnswers[qId] = v.answer
-          if (v.explanation) serverExplanations[qId] = v.explanation
+        if (typeof val === 'object' && val !== null) {
+          const v = val as Record<string, unknown>
+          if ('part_answers' in v && Array.isArray(v.part_answers)) {
+            const savedParts = v.part_answers as Array<{ part_id: string; text: string }>
+            savedParts.forEach(pa => {
+              if (pa.part_id && pa.text) setPartAnswer(qId, pa.part_id, pa.text)
+            })
+          } else if ('answer' in v) {
+            if (v.answer) serverAnswers[qId] = v.answer as string
+            if (v.explanation) serverExplanations[qId] = v.explanation as string
+          }
         } else if (typeof val === 'string') {
           serverAnswers[qId] = val
         }
@@ -175,7 +193,7 @@ export default function ExamPage() {
     const goOnline = () => {
       setIsOffline(false)
       const sections = sessionRef.current?.sections ?? []
-      const buffer = buildAnswerBuffer(sections, answersRef.current, explanationsRef.current)
+      const buffer = buildAnswerBuffer(sections, answersRef.current, explanationsRef.current, partAnswersRef.current)
       api.patch(`/employee/exam/${assignmentId}/save`, { answers: buffer }).catch(() => {})
     }
     window.addEventListener('offline', goOffline)
@@ -313,6 +331,7 @@ export default function ExamPage() {
           currentSectionIdx={currentSectionIdx}
           currentQuestionIdx={currentQuestionIdx}
           answers={answers}
+          partAnswers={partAnswers}
           visitedQuestions={visitedQuestions}
           remainingSeconds={remainingSeconds}
           onNavigate={handleNavigate}
@@ -332,6 +351,18 @@ export default function ExamPage() {
                 onAnswer={(optId) => handleAnswer(currentQuestion.id, optId)}
                 onClear={() => handleClear(currentQuestion.id)}
                 onExplanation={(text) => setExplanation(currentQuestion.id, text)}
+                onPrev={hasPrev() ? navPrev : undefined}
+                onNext={hasNext() ? navNext : undefined}
+              />
+            ) : currentQuestion.type === 'parts' ? (
+              <PartsQuestion
+                question={currentQuestion}
+                sectionTitle={currentSection.title}
+                questionNumber={currentQuestionIdx + 1}
+                totalInSection={currentSection.questions.length}
+                partAnswers={partAnswers[currentQuestion.id] ?? []}
+                onPartAnswer={(partId, text) => setPartAnswer(currentQuestion.id, partId, text)}
+                onClear={() => clearPartAnswers(currentQuestion.id)}
                 onPrev={hasPrev() ? navPrev : undefined}
                 onNext={hasNext() ? navNext : undefined}
               />
@@ -356,6 +387,7 @@ export default function ExamPage() {
         open={showSubmitModal}
         sections={sections}
         answers={answers}
+        partAnswers={partAnswers}
         onCancel={() => setShowSubmitModal(false)}
         onConfirm={() => submitMutation.mutate(false)}
         loading={submitMutation.isPending}
