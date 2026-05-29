@@ -153,6 +153,7 @@ export default function QuotationTab() {
   const [agOnboardingDate, setAgOnboardingDate] = useState('')
   const [agClientSignatoryName, setAgClientSignatoryName] = useState('')
   const [agClientSignatoryDesignation, setAgClientSignatoryDesignation] = useState('')
+  const [restoredFromSession, setRestoredFromSession] = useState(false)
 
   // Auto-fetch creator info from profile (read-only)
   useEffect(() => {
@@ -182,6 +183,79 @@ export default function QuotationTab() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Restore draft from sessionStorage on mount (skip if a saved quotation is loaded)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('quotation_draft_v1')
+      if (!raw) return
+      const d = JSON.parse(raw)
+      if (!d.clientName) return
+      setClientName(d.clientName || '')
+      setClientAddress(d.clientAddress || '')
+      setClientPhone(d.clientPhone || '')
+      setPlaceOfSupply(d.placeOfSupply || '')
+      setPlanName(d.planName || '')
+      setRate(Number(d.rate) || 0)
+      setPatientRegistrations(d.patientRegistrations || '')
+      setFeatures(Array.isArray(d.features) ? d.features : [])
+      setDurationOption(d.durationOption || '12')
+      setDurationCustomMonths(Number(d.durationCustomMonths) || 1)
+      setMachinesCount(Number(d.machinesCount) || 0)
+      setMachinePrice(Number(d.machinePrice) || 0)
+      setDiscountType(d.discountType || 'percent')
+      setDiscountValue(Number(d.discountValue) || 0)
+      setQuoteDate(d.quoteDate || today())
+      setExpiryDate(d.expiryDate || today())
+      setZeroGst(Boolean(d.zeroGst))
+      setIncludeAgreement(Boolean(d.includeAgreement))
+      setAgClientContactPerson(d.agClientContactPerson || '')
+      setAgClientEmail(d.agClientEmail || '')
+      setAgClientGstin(d.agClientGstin || '')
+      setAgInterfacingDirection(d.agInterfacingDirection || 'Unidirectional')
+      setAgProcessingLab(Boolean(d.agProcessingLab))
+      setAgProcessingLabCount(Number(d.agProcessingLabCount) || 1)
+      setAgWhatsappApi(Boolean(d.agWhatsappApi))
+      setAgRazorpay(Boolean(d.agRazorpay))
+      setAgCollectionCenter(Boolean(d.agCollectionCenter))
+      setAgCollectionCenterCount(Number(d.agCollectionCenterCount) || 1)
+      setAgPaymentTerms(d.agPaymentTerms || 'full_upfront')
+      setAgPaymentTermsCustom(d.agPaymentTermsCustom || '')
+      setAgOnboardingDate(d.agOnboardingDate || '')
+      setAgClientSignatoryName(d.agClientSignatoryName || '')
+      setAgClientSignatoryDesignation(d.agClientSignatoryDesignation || '')
+      setRestoredFromSession(true)
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Persist draft to sessionStorage on every form change (skip when viewing a saved quotation)
+  useEffect(() => {
+    if (savedQuotationId) return
+    sessionStorage.setItem('quotation_draft_v1', JSON.stringify({
+      clientName, clientAddress, clientPhone, placeOfSupply,
+      planName, rate, patientRegistrations, features,
+      durationOption, durationCustomMonths,
+      machinesCount, machinePrice,
+      discountType, discountValue,
+      quoteDate, expiryDate, zeroGst, includeAgreement,
+      agClientContactPerson, agClientEmail, agClientGstin,
+      agInterfacingDirection, agProcessingLab, agProcessingLabCount,
+      agWhatsappApi, agRazorpay, agCollectionCenter, agCollectionCenterCount,
+      agPaymentTerms, agPaymentTermsCustom, agOnboardingDate,
+      agClientSignatoryName, agClientSignatoryDesignation,
+    }))
+  }, [
+    clientName, clientAddress, clientPhone, placeOfSupply,
+    planName, rate, patientRegistrations, features,
+    durationOption, durationCustomMonths, machinesCount, machinePrice,
+    discountType, discountValue, quoteDate, expiryDate, zeroGst, includeAgreement,
+    agClientContactPerson, agClientEmail, agClientGstin,
+    agInterfacingDirection, agProcessingLab, agProcessingLabCount,
+    agWhatsappApi, agRazorpay, agCollectionCenter, agCollectionCenterCount,
+    agPaymentTerms, agPaymentTermsCustom, agOnboardingDate,
+    agClientSignatoryName, agClientSignatoryDesignation, savedQuotationId,
+  ])
 
   const { data: historyData, refetch: refetchHistory } = useQuery<{ quotations: QuotationRow[] }>({
     queryKey: ['employee-quotations'],
@@ -247,8 +321,13 @@ export default function QuotationTab() {
     ? (discountType === 'percent' ? Math.round(subTotal * discountValue / 100) : discountValue)
     : 0
   const taxableAmount = subTotal - discountAmount
-  const igst = zeroGst ? 0 : Math.round(taxableAmount * 0.18)
+  const gstRate = zeroGst ? 0 : 18
+  const igst = Math.round(taxableAmount * gstRate / 100)
   const total = taxableAmount + igst
+  // Discount needed to make final total equal subTotal after GST: D = P×G/(100+G)
+  const suggestedDiscount = gstRate > 0 && subTotal > 0
+    ? Math.round(subTotal * gstRate / (100 + gstRate))
+    : 0
 
   function buildAgreementData() {
     return {
@@ -297,6 +376,8 @@ export default function QuotationTab() {
       setSavedQuoteNumber(qt.quote_number)
       setSavedSeqNumber(qt.sequence_number || null)
       setSavedQuotationId(qt.id)
+      sessionStorage.removeItem('quotation_draft_v1')
+      setRestoredFromSession(false)
       setSaveMsg('Saved as draft!')
       setTimeout(() => setSaveMsg(''), 3000)
       refetchHistory()
@@ -414,6 +495,8 @@ export default function QuotationTab() {
     setQuoteDate(today()); setExpiryDate(today())
     setSavedQuoteNumber(null); setSavedSeqNumber(null); setSavedQuotationId(null)
     setIsReadOnly(false); setSaveMsg('')
+    sessionStorage.removeItem('quotation_draft_v1')
+    setRestoredFromSession(false)
     setZeroGst(false)
     setFeatureSearch(''); setFeatureDropdownOpen(false)
     setIncludeAgreement(false); setPreviewTab('quotation')
@@ -452,6 +535,17 @@ export default function QuotationTab() {
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-2">
                 Viewing saved quotation (read-only)
                 <button onClick={resetForm} className="font-medium underline ml-1">New</button>
+              </div>
+            )}
+            {!isReadOnly && restoredFromSession && (
+              <div className="text-xs text-gray-500 flex items-center gap-2">
+                Unsaved draft restored
+                <button
+                  onClick={() => { sessionStorage.removeItem('quotation_draft_v1'); resetForm() }}
+                  className="underline text-gray-400 hover:text-gray-600"
+                >
+                  Clear
+                </button>
               </div>
             )}
           </div>
@@ -693,6 +787,17 @@ export default function QuotationTab() {
                     placeholder="0"
                   />
                 </div>
+                {!isReadOnly && suggestedDiscount > 0 && (
+                  <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                    Suggested discount to absorb GST: ₹{fmtInr(suggestedDiscount)}
+                    <button
+                      onClick={() => { setDiscountType('inr'); setDiscountValue(suggestedDiscount) }}
+                      className="text-blue-600 underline text-xs"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
                 {discountAmount > 0 && (
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Discount Amount</label>
