@@ -321,20 +321,33 @@ export default function QuotationTab() {
     }
   }
 
-  // Derived calculations
+  // Derived calculations — all arithmetic in paise to avoid floating point errors
   const machineTotal = machinesCount * machinePrice
   const subTotal = rate + machineTotal
-  const discountAmount = discountValue > 0
-    ? (discountType === 'percent' ? Math.round(subTotal * discountValue / 100) : discountValue)
-    : 0
-  const taxableAmount = subTotal - discountAmount
   const gstRate = zeroGst ? 0 : 18
-  const igst = Math.round(taxableAmount * gstRate / 100)
-  const total = taxableAmount + igst
-  // Discount needed to make final total equal subTotal after GST: D = P×G/(100+G)
-  const suggestedDiscount = gstRate > 0 && subTotal > 0
-    ? Math.round(subTotal * gstRate / (100 + gstRate))
+
+  const subTotalPaise = Math.round(subTotal * 100)
+  const discountAmountPaise = discountValue > 0
+    ? (discountType === 'percent'
+      ? Math.round(subTotalPaise * discountValue / 100)
+      : Math.round(discountValue * 100))
     : 0
+  const taxableAmountPaise = subTotalPaise - discountAmountPaise
+  const igstPaise = Math.round(taxableAmountPaise * gstRate / 100)
+  const totalPaise = taxableAmountPaise + igstPaise
+
+  const discountAmount = discountAmountPaise / 100
+  const taxableAmount = taxableAmountPaise / 100
+  const igst = igstPaise / 100
+  const total = totalPaise / 100
+
+  // Suggested discount: D = P×G/(100+G) — computed in paise so total === subTotal exactly
+  const suggestedDiscountPaise = gstRate > 0 && subTotalPaise > 0
+    ? Math.round(subTotalPaise * gstRate / (100 + gstRate))
+    : 0
+  const suggestedDiscount = suggestedDiscountPaise / 100
+  // Verification: does current discount make total == subtotal?
+  const totalMatchesSubtotal = gstRate > 0 && discountAmountPaise > 0 && totalPaise === subTotalPaise
 
   function buildAgreementData() {
     return {
@@ -604,14 +617,6 @@ export default function QuotationTab() {
                 </div>
               </div>
 
-              {/* Created By — auto-fetched, read-only */}
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <p className={sectionLabel}>Created By</p>
-                <p className="text-sm text-gray-700">
-                  {displayName || '—'}{salespersonEmail ? ` (${salespersonEmail})` : ''}
-                </p>
-              </div>
-
               {/* Plan */}
               <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
                 <p className={sectionLabel}>Plan</p>
@@ -810,6 +815,13 @@ export default function QuotationTab() {
                     >
                       Apply
                     </button>
+                  </div>
+                )}
+                {gstRate > 0 && discountAmount > 0 && (
+                  <div className={`text-xs mt-1 ${totalMatchesSubtotal ? 'text-green-700' : 'text-red-600'}`}>
+                    {totalMatchesSubtotal
+                      ? `✓ Final total equals original ₹${fmtInr(subTotal)}`
+                      : `Final total: ₹${fmtInr(total)} (expected ₹${fmtInr(subTotal)})`}
                   </div>
                 )}
                 {discountAmount > 0 && (
