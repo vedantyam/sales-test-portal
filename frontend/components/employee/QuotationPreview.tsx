@@ -27,10 +27,20 @@ export interface QuotationPreviewProps {
   rate: number
   patientRegistrations?: string
   features: string[]
+  machinesCount?: number
+  machinePrice?: number
+  machineTotal?: number
+  durationMonths?: number
+  discountType?: string
+  discountValue?: number
+  discountAmount?: number
   quoteDate?: string
   expiryDate?: string
   signatureImageUrl?: string | null
   logoImageUrl?: string | null
+  signatoryName?: string | null
+  signatoryDesignation?: string | null
+  zeroGst?: boolean
 }
 
 function formatDate(d?: string): string {
@@ -38,6 +48,13 @@ function formatDate(d?: string): string {
   const dt = new Date(d)
   if (isNaN(dt.getTime())) return d
   return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function durationLabel(months: number): string {
+  if (months === 1) return '1 Month'
+  if (months === 12) return '1 Year'
+  if (months === 24) return '2 Years'
+  return `${months} Months`
 }
 
 export default function QuotationPreview({
@@ -50,13 +67,42 @@ export default function QuotationPreview({
   rate,
   patientRegistrations,
   features,
+  machinesCount = 0,
+  machinePrice = 0,
+  machineTotal,
+  durationMonths = 12,
+  discountType = 'none',
+  discountValue = 0,
+  discountAmount,
   quoteDate,
   expiryDate,
   signatureImageUrl,
   logoImageUrl,
+  signatoryName,
+  signatoryDesignation,
+  zeroGst = false,
 }: QuotationPreviewProps) {
-  const igst = Math.round(rate * 0.18)
-  const total = rate + igst
+  const mCount = machinesCount
+  const mTotal = machineTotal ?? mCount * machinePrice
+  const subTotal = rate + mTotal
+
+  const discAmt = discountAmount !== undefined
+    ? discountAmount
+    : (discountValue > 0
+        ? (discountType === 'percent' ? Math.round(subTotal * discountValue / 100) : discountValue)
+        : 0)
+
+  const taxableAmt = subTotal - discAmt
+  const igst = zeroGst ? 0 : Math.round(taxableAmt * 0.18)
+  const total = taxableAmt + igst
+
+  const lineItemIgstPlan = zeroGst ? 0 : Math.round(rate * 0.18)
+  const lineItemIgstMachine = zeroGst ? 0 : Math.round(mTotal * 0.18)
+
+  const showDiscount = discAmt > 0
+  const discountLabel = discountType === 'percent'
+    ? `Discount (${discountValue}%)`
+    : `Discount (₹${fmtInr(discountValue)})`
 
   return (
     <div
@@ -163,12 +209,11 @@ export default function QuotationPreview({
             <tr style={{ borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>
               <td style={{ padding: '5px 6px' }}>1</td>
               <td style={{ padding: '5px 6px' }}>
-                <div style={{ fontWeight: 600 }}>{planName || '—'} Subscription Plan For 1 Year</div>
+                <div style={{ fontWeight: 600 }}>{planName || '—'} Subscription Plan For {durationLabel(durationMonths)}</div>
                 {patientRegistrations && (
                   <div style={{ color: '#3b5bdb', marginTop: 2 }}>{patientRegistrations}</div>
                 )}
                 {features.length > 0 && (
-                  /* qt-features class enables 2-column layout in @media print */
                   <ul className="qt-features" style={{ marginTop: 3, paddingLeft: 0, listStyle: 'none' }}>
                     {features.map((f, i) => (
                       <li key={i} style={{ color: '#6b7280', marginBottom: 1 }}>• {f}</li>
@@ -179,22 +224,47 @@ export default function QuotationPreview({
               <td style={{ padding: '5px 6px', textAlign: 'center' }}>997313</td>
               <td style={{ padding: '5px 6px', textAlign: 'center' }}>1.00</td>
               <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(rate)}</td>
-              <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(igst)} (18%)</td>
+              <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(lineItemIgstPlan)} ({zeroGst ? '0' : '18'}%)</td>
               <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(rate)}</td>
             </tr>
+            {mCount > 0 && (
+              <tr style={{ borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>
+                <td style={{ padding: '5px 6px' }}>2</td>
+                <td style={{ padding: '5px 6px' }}>
+                  <div style={{ fontWeight: 600 }}>Machine Interfacing – One-time Cost ({mCount} machine{mCount !== 1 ? 's' : ''})</div>
+                </td>
+                <td style={{ padding: '5px 6px', textAlign: 'center' }}>998314</td>
+                <td style={{ padding: '5px 6px', textAlign: 'center' }}>{mCount}</td>
+                <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(machinePrice)}</td>
+                <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(lineItemIgstMachine)} ({zeroGst ? '0' : '18'}%)</td>
+                <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(mTotal)}</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
       {/* ── Totals ─────────────────────────────────────────────────────── */}
       <div className="mx-4 mt-2 flex justify-end">
-        <div style={{ width: 210 }}>
+        <div style={{ width: 230 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 9, borderBottom: '1px solid #f3f4f6' }}>
             <span style={{ color: '#6b7280' }}>Sub Total</span>
-            <span style={{ fontWeight: 500 }}>₹{fmtInr(rate)}</span>
+            <span style={{ fontWeight: 500 }}>₹{fmtInr(subTotal)}</span>
           </div>
+          {showDiscount && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 9, borderBottom: '1px solid #f3f4f6' }}>
+                <span style={{ color: '#dc2626' }}>{discountLabel}</span>
+                <span style={{ fontWeight: 500, color: '#dc2626' }}>−₹{fmtInr(discAmt)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 9, borderBottom: '1px solid #f3f4f6' }}>
+                <span style={{ color: '#6b7280' }}>Taxable Amount</span>
+                <span style={{ fontWeight: 500 }}>₹{fmtInr(taxableAmt)}</span>
+              </div>
+            </>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 9, borderBottom: '1px solid #f3f4f6' }}>
-            <span style={{ color: '#6b7280' }}>IGST (18%)</span>
+            <span style={{ color: '#6b7280' }}>IGST ({zeroGst ? '0' : '18'}%)</span>
             <span style={{ fontWeight: 500 }}>₹{fmtInr(igst)}</span>
           </div>
           <div
@@ -248,15 +318,21 @@ export default function QuotationPreview({
 
       {/* ── Signature ──────────────────────────────────────────────────── */}
       <div className="mx-4 mt-3">
-        <div style={{ width: 150 }}>
+        <div style={{ width: 180 }}>
           {signatureImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={signatureImageUrl} alt="Authorized Signature" style={{ maxHeight: 52, maxWidth: 150 }} />
           ) : (
-            <div style={{ borderBottom: '2px solid #9ca3af', width: '100%', height: 36 }} />
+            <div style={{ borderBottom: '2px solid #9ca3af', width: 150, height: 36 }} />
           )}
           <div style={{ fontSize: 8, color: '#6b7280', marginTop: 3 }}>Authorized Signature</div>
-          <div style={{ fontSize: 9, fontWeight: 600, color: '#111827' }}>Diagnoshuttle Private Limited</div>
+          {signatoryName && (
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#111827', marginTop: 2 }}>{signatoryName}</div>
+          )}
+          {signatoryDesignation && (
+            <div style={{ fontSize: 9, color: '#374151', marginTop: 1 }}>{signatoryDesignation}</div>
+          )}
+          <div style={{ fontSize: 9, fontWeight: 600, color: '#111827', marginTop: 2 }}>Diagnoshuttle Private Limited</div>
         </div>
       </div>
 

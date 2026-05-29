@@ -32,8 +32,14 @@ export async function POST(request: NextRequest) {
   const {
     client_name, client_address, client_phone, place_of_supply,
     plan_name, plan_rate, patient_registrations, features,
+    machines_count, machine_price, machine_total,
+    duration_months,
+    discount_type, discount_value, discount_amount,
     sub_total, igst_amount, total_amount, quote_date, expiry_date,
     status = 'draft',
+    include_agreement,
+    agreement_data,
+    zero_gst,
   } = body
 
   if (!client_name?.trim() || !plan_name?.trim() || !quote_date || !expiry_date) {
@@ -44,14 +50,22 @@ export async function POST(request: NextRequest) {
     `INSERT INTO quotations (
       employee_id, client_name, client_address, client_phone, place_of_supply,
       plan_name, plan_rate, patient_registrations, features,
-      sub_total, igst_amount, total_amount, quote_date, expiry_date, status
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      machines_count, machine_price, machine_total,
+      duration_months,
+      discount_type, discount_value, discount_amount,
+      sub_total, igst_amount, total_amount, quote_date, expiry_date, status,
+      include_agreement, agreement_data, zero_gst
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
     RETURNING *`,
     [
       employeeId, client_name.trim(), client_address || null, client_phone || null, place_of_supply || null,
       plan_name, Number(plan_rate) || 0, patient_registrations || null, JSON.stringify(features || []),
+      Number(machines_count) || 0, Number(machine_price) || 0, Number(machine_total) || 0,
+      Number(duration_months) || 12,
+      discount_type || 'none', Number(discount_value) || 0, Number(discount_amount) || 0,
       Number(sub_total) || 0, Number(igst_amount) || 0, Number(total_amount) || 0,
       quote_date, expiry_date, status,
+      Boolean(include_agreement) || false, JSON.stringify(agreement_data || {}), Boolean(zero_gst) || false,
     ]
   )
 

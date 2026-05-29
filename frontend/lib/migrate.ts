@@ -242,6 +242,30 @@ const statements = [
 
   // Parts question type support
   `ALTER TABLE results ADD COLUMN IF NOT EXISTS part_scores JSONB DEFAULT '{}'`,
+
+  // Machine interfacing
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS machines_count INTEGER DEFAULT 0`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS machine_price NUMERIC DEFAULT 0`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS machine_total NUMERIC DEFAULT 0`,
+
+  // Subscription duration
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS duration_months INTEGER DEFAULT 12`,
+
+  // Discount
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT 'none'`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS discount_value NUMERIC DEFAULT 0`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0`,
+
+  // Signatory details
+  `ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS signatory_name TEXT`,
+  `ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS signatory_designation TEXT`,
+
+  // Agreement feature
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS include_agreement BOOLEAN DEFAULT false`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS agreement_data JSONB DEFAULT '{}'`,
+
+  // Zero GST option
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS zero_gst BOOLEAN DEFAULT false`,
 ]
 
 async function doMigrations(): Promise<void> {
