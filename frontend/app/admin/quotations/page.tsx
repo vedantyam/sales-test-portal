@@ -43,6 +43,8 @@ interface QuotationRow {
   discount_type?: string
   discount_value?: number
   discount_amount?: number
+  include_agreement?: boolean
+  creator_name?: string | null
 }
 
 interface SalespersonSummary {
@@ -692,7 +694,7 @@ function OverviewTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                {['#', 'Client Name', 'Plan', 'Amount', 'Quote Date', 'Status'].map((h) => (
+                {['#', 'Client Name', 'Plan', 'Amount', 'Quote Date', 'Status', 'Agreement'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                 ))}
               </tr>
@@ -712,10 +714,15 @@ function OverviewTab() {
                       {q.status === 'sent' ? 'Sent' : 'Draft'}
                     </span>
                   </td>
+                  <td className="px-4 py-2.5">
+                    {q.include_agreement
+                      ? <span className="inline-block text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">Yes</span>
+                      : <span className="text-xs text-gray-400">—</span>}
+                  </td>
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">
                   {quotationSearch ? 'No matches' : 'No quotations'}
                 </td></tr>
               )}
