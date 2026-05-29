@@ -154,6 +154,9 @@ export default function QuotationTab() {
   const [agClientSignatoryName, setAgClientSignatoryName] = useState('')
   const [agClientSignatoryDesignation, setAgClientSignatoryDesignation] = useState('')
   const [restoredFromSession, setRestoredFromSession] = useState(false)
+  // RIS — available only for Leader and Enterprise plans
+  const [risFeatures, setRisFeatures] = useState<{ billing: boolean; reporting: boolean }>({ billing: false, reporting: false })
+  const [risCost, setRisCost] = useState(0)
 
   // Auto-fetch creator info from profile (read-only)
   useEffect(() => {
@@ -224,6 +227,8 @@ export default function QuotationTab() {
       setAgOnboardingDate(d.agOnboardingDate || '')
       setAgClientSignatoryName(d.agClientSignatoryName || '')
       setAgClientSignatoryDesignation(d.agClientSignatoryDesignation || '')
+      if (d.risFeatures) setRisFeatures(d.risFeatures)
+      setRisCost(Number(d.risCost) || 0)
       setRestoredFromSession(true)
     } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -244,6 +249,7 @@ export default function QuotationTab() {
       agWhatsappApi, agRazorpay, agCollectionCenter, agCollectionCenterCount,
       agPaymentTerms, agPaymentTermsCustom, agOnboardingDate,
       agClientSignatoryName, agClientSignatoryDesignation,
+      risFeatures, risCost,
     }))
   }, [
     clientName, clientAddress, clientPhone, placeOfSupply,
@@ -254,7 +260,8 @@ export default function QuotationTab() {
     agInterfacingDirection, agProcessingLab, agProcessingLabCount,
     agWhatsappApi, agRazorpay, agCollectionCenter, agCollectionCenterCount,
     agPaymentTerms, agPaymentTermsCustom, agOnboardingDate,
-    agClientSignatoryName, agClientSignatoryDesignation, savedQuotationId,
+    agClientSignatoryName, agClientSignatoryDesignation,
+    risFeatures, risCost, savedQuotationId,
   ])
 
   const { data: historyData, refetch: refetchHistory } = useQuery<{ quotations: QuotationRow[] }>({
@@ -371,6 +378,8 @@ export default function QuotationTab() {
         zero_gst: zeroGst,
         include_agreement: includeAgreement,
         agreement_data: includeAgreement ? buildAgreementData() : {},
+        ris_features: risFeatures,
+        ris_cost: risCost,
       })
       const qt = res.data.quotation
       setSavedQuoteNumber(qt.quote_number)
@@ -482,6 +491,10 @@ export default function QuotationTab() {
       setAgOnboardingDate(String(ads.onboarding_date || ''))
       setAgClientSignatoryName(String(ads.client_signatory_name || ''))
       setAgClientSignatoryDesignation(String(ads.client_signatory_designation || ''))
+      const rf = qt.ris_features && typeof qt.ris_features === 'object' ? qt.ris_features : {}
+      const rfs = rf as Record<string, unknown>
+      setRisFeatures({ billing: Boolean(rfs.billing), reporting: Boolean(rfs.reporting) })
+      setRisCost(Number(qt.ris_cost) || 0)
       setPreviewTab('quotation')
     }).catch(() => {})
   }
@@ -508,6 +521,7 @@ export default function QuotationTab() {
     setAgPaymentTerms('full_upfront'); setAgPaymentTermsCustom('')
     setAgOnboardingDate('')
     setAgClientSignatoryName(''); setAgClientSignatoryDesignation('')
+    setRisFeatures({ billing: false, reporting: false }); setRisCost(0)
   }
 
   const inputCls = `w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 ${isReadOnly ? 'bg-gray-50 text-gray-600 cursor-default' : 'bg-white'}`
@@ -838,6 +852,59 @@ export default function QuotationTab() {
                 </div>
               </div>
 
+              {/* RIS — Leader and Enterprise only */}
+              {(planName === 'Leader' || planName === 'Enterprise') && (
+                <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">RIS</p>
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 normal-case">Leader & Enterprise</span>
+                  </div>
+                  <p className="text-xs text-gray-400">Radiology Information System modules</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={risFeatures.billing}
+                        onChange={(e) => setRisFeatures((f) => ({ ...f, billing: e.target.checked }))}
+                        disabled={isReadOnly}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <div className="text-xs font-medium text-gray-800">Billing</div>
+                        <div className="text-xs text-gray-400">Patient billing & invoicing</div>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={risFeatures.reporting}
+                        onChange={(e) => setRisFeatures((f) => ({ ...f, reporting: e.target.checked }))}
+                        disabled={isReadOnly}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <div className="text-xs font-medium text-gray-800">Reporting</div>
+                        <div className="text-xs text-gray-400">Radiology report generation</div>
+                      </div>
+                    </label>
+                  </div>
+                  {(risFeatures.billing || risFeatures.reporting) && (
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">RIS Cost (₹)</label>
+                      <input
+                        className={inputCls}
+                        type="number"
+                        min={0}
+                        value={risCost || ''}
+                        onChange={(e) => setRisCost(Math.max(0, Number(e.target.value)))}
+                        disabled={isReadOnly}
+                        placeholder="0"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Agreement form sections — only when toggle on */}
               {includeAgreement && (
                 <>
@@ -1082,6 +1149,8 @@ export default function QuotationTab() {
                   signatoryName={signatoryName}
                   signatoryDesignation={signatoryDesignation}
                   zeroGst={zeroGst}
+                  risFeatures={risFeatures}
+                  risCost={risCost}
                 />
               </div>
 

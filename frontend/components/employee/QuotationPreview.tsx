@@ -42,6 +42,8 @@ export interface QuotationPreviewProps {
   signatoryName?: string | null
   signatoryDesignation?: string | null
   zeroGst?: boolean
+  risFeatures?: { billing?: boolean; reporting?: boolean }
+  risCost?: number
 }
 
 function formatDate(d?: string): string {
@@ -83,6 +85,8 @@ export default function QuotationPreview({
   signatoryName,
   signatoryDesignation,
   zeroGst = false,
+  risFeatures,
+  risCost = 0,
 }: QuotationPreviewProps) {
   const mCount = machinesCount
   const mTotal = machineTotal ?? mCount * machinePrice
@@ -240,6 +244,22 @@ export default function QuotationPreview({
                 <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(machinePrice)}</td>
                 <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(lineItemIgstMachine)} ({zeroGst ? '0' : '18'}%)</td>
                 <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(mTotal)}</td>
+              </tr>
+            )}
+            {risFeatures && (risFeatures.billing || risFeatures.reporting) && risCost > 0 && (
+              <tr style={{ borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>
+                <td style={{ padding: '5px 6px' }}>{mCount > 0 ? 3 : 2}</td>
+                <td style={{ padding: '5px 6px' }}>
+                  <div style={{ fontWeight: 600 }}>RIS (Radiology Information System)</div>
+                  <div style={{ color: '#6b7280', marginTop: 2 }}>
+                    {[risFeatures.billing && 'Billing', risFeatures.reporting && 'Reporting'].filter(Boolean).join(', ')}
+                  </div>
+                </td>
+                <td style={{ padding: '5px 6px', textAlign: 'center' }}>998313</td>
+                <td style={{ padding: '5px 6px', textAlign: 'center' }}>1</td>
+                <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(risCost)}</td>
+                <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(zeroGst ? 0 : Math.round(risCost * 0.18))} ({zeroGst ? '0' : '18'}%)</td>
+                <td style={{ padding: '5px 6px', textAlign: 'right' }}>₹{fmtInr(risCost)}</td>
               </tr>
             )}
           </tbody>

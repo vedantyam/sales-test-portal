@@ -50,6 +50,7 @@ interface SalespersonSummary {
   employee_name: string
   department: string
   total_quotes: number
+  total_agreements: number
   total_revenue: number
 }
 
@@ -577,6 +578,8 @@ function OverviewTab() {
   const [previewQuotation, setPreviewQuotation] = useState<QuotationRow | null>(null)
   const [signatureImageUrl, setSignatureImageUrl] = useState<string | null>(null)
   const [activityOpen, setActivityOpen] = useState(false)
+  const [employeeSearch, setEmployeeSearch] = useState('')
+  const [quotationSearch, setQuotationSearch] = useState('')
 
   const { data: salesData } = useQuery({
     queryKey: ['admin-quotations-by-salesperson'],
@@ -654,10 +657,17 @@ function OverviewTab() {
 
   if (selectedEmployee) {
     const quotations: QuotationRow[] = employeeQuotations?.quotations || []
+    const filtered = quotationSearch
+      ? quotations.filter((q) =>
+          q.client_name.toLowerCase().includes(quotationSearch.toLowerCase()) ||
+          (q.sequence_number || '').includes(quotationSearch) ||
+          q.plan_name.toLowerCase().includes(quotationSearch.toLowerCase())
+        )
+      : quotations
     return (
       <div>
         <button
-          onClick={() => setSelectedEmployee(null)}
+          onClick={() => { setSelectedEmployee(null); setQuotationSearch('') }}
           className="mb-4 flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
         >
           ← All Salespeople
@@ -667,28 +677,36 @@ function OverviewTab() {
             <h2 className="text-base font-semibold text-gray-900">{selectedEmployee.employee_name}</h2>
             <p className="text-xs text-gray-500">{selectedEmployee.department}</p>
           </div>
-          <div className="ml-auto flex gap-4 text-sm text-gray-600">
-            <span>{selectedEmployee.total_quotes} quote{selectedEmployee.total_quotes !== 1 ? 's' : ''}</span>
-            <span className="font-medium text-gray-900">₹{fmtInr(Number(selectedEmployee.total_revenue))}</span>
+          <div className="ml-auto flex items-center gap-4">
+            <input
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:border-blue-400"
+              placeholder="Search by client, #, plan…"
+              value={quotationSearch}
+              onChange={(e) => setQuotationSearch(e.target.value)}
+            />
+            <span className="text-sm text-gray-600">{selectedEmployee.total_quotes} quote{selectedEmployee.total_quotes !== 1 ? 's' : ''}</span>
+            <span className="font-medium text-gray-900 text-sm">₹{fmtInr(Number(selectedEmployee.total_revenue))}</span>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                {['Client Name', 'Plan', 'Amount', 'Quote Date', 'Expiry Date', 'Status'].map((h) => (
+                {['#', 'Client Name', 'Plan', 'Amount', 'Quote Date', 'Status'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {quotations.map((q) => (
+              {filtered.map((q) => (
                 <tr key={q.id} onClick={() => openQuotationPreview(q)} className="hover:bg-gray-50 cursor-pointer">
+                  <td className="px-4 py-2.5 text-xs font-mono text-blue-700">
+                    {q.sequence_number ? `#${q.sequence_number}` : '—'}
+                  </td>
                   <td className="px-4 py-2.5 font-medium text-gray-900">{q.client_name}</td>
                   <td className="px-4 py-2.5 text-gray-600">{q.plan_name}</td>
                   <td className="px-4 py-2.5 text-gray-900">₹{fmtInr(Number(q.total_amount))}</td>
                   <td className="px-4 py-2.5 text-gray-600">{q.quote_date?.split('T')[0] || '—'}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{q.expiry_date?.split('T')[0] || '—'}</td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${q.status === 'sent' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
                       {q.status === 'sent' ? 'Sent' : 'Draft'}
@@ -696,8 +714,10 @@ function OverviewTab() {
                   </td>
                 </tr>
               ))}
-              {!quotations.length && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">No quotations</td></tr>
+              {!filtered.length && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">
+                  {quotationSearch ? 'No matches' : 'No quotations'}
+                </td></tr>
               )}
             </tbody>
           </table>
@@ -707,34 +727,46 @@ function OverviewTab() {
   }
 
   const salesRows: SalespersonSummary[] = salesData?.data || []
+  const filteredSalesRows = employeeSearch
+    ? salesRows.filter((r) => r.employee_name.toLowerCase().includes(employeeSearch.toLowerCase()))
+    : salesRows
 
   return (
     <div className="space-y-6">
       {/* Salespeople table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-900">Salespeople</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Click a row to view their quotations</p>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Salespeople</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Click a row to view their quotations</p>
+          </div>
+          <input
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:border-blue-400"
+            placeholder="Search by name…"
+            value={employeeSearch}
+            onChange={(e) => setEmployeeSearch(e.target.value)}
+          />
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              {['Name', 'Department', 'Total Quotes', 'Total Revenue'].map((h) => (
+              {['Name', 'Department', 'Quotes', 'Agreements', 'Total Revenue'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {salesRows.map((r) => (
+            {filteredSalesRows.map((r) => (
               <tr key={r.employee_id} onClick={() => setSelectedEmployee(r)} className="hover:bg-gray-50 cursor-pointer">
                 <td className="px-4 py-2.5 font-medium text-gray-900">{r.employee_name}</td>
                 <td className="px-4 py-2.5 text-gray-600">{r.department}</td>
                 <td className="px-4 py-2.5 text-gray-600">{r.total_quotes}</td>
+                <td className="px-4 py-2.5 text-gray-600">{r.total_agreements ?? 0}</td>
                 <td className="px-4 py-2.5 text-gray-900 font-medium">₹{fmtInr(Number(r.total_revenue))}</td>
               </tr>
             ))}
-            {!salesRows.length && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400 text-sm">No quotations yet</td></tr>
+            {!filteredSalesRows.length && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-sm">No quotations yet</td></tr>
             )}
           </tbody>
         </table>

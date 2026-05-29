@@ -273,6 +273,10 @@ const statements = [
   `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS created_by UUID`,
   `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS creator_name TEXT`,
   `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS creator_email TEXT`,
+
+  // Phase 3: RIS module for Leader/Enterprise plans
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ris_features JSONB DEFAULT '{}'`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ris_cost NUMERIC DEFAULT 0`,
 ]
 
 async function doMigrations(): Promise<void> {

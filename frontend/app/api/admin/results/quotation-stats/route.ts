@@ -12,16 +12,16 @@ export async function GET(request: NextRequest) {
 
   const { rows } = await db.query(
     `SELECT
-      e.id as employee_id,
-      e.name as employee_name,
-      e.department,
-      COUNT(q.id)::int as total_quotes,
-      COUNT(q.id) FILTER (WHERE q.include_agreement = true)::int as total_agreements,
-      COALESCE(SUM(q.total_amount), 0)::numeric as total_revenue
-     FROM employees e
-     JOIN quotations q ON q.employee_id = e.id
-     GROUP BY e.id, e.name, e.department
-     ORDER BY total_revenue DESC`
+      creator_name,
+      creator_email,
+      COUNT(*)::int as total_quotations,
+      COUNT(*) FILTER (WHERE status = 'sent')::int as sent,
+      COUNT(*) FILTER (WHERE status = 'accepted')::int as accepted,
+      COUNT(*) FILTER (WHERE include_agreement = true)::int as total_agreements,
+      COALESCE(SUM(total_amount), 0)::numeric as total_value
+     FROM quotations
+     GROUP BY creator_name, creator_email
+     ORDER BY total_quotations DESC`
   )
 
   return NextResponse.json({ data: rows })
