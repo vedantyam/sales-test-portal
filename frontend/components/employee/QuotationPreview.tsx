@@ -215,7 +215,14 @@ export default function QuotationPreview({
             <tr style={{ borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>
               <td style={{ padding: '5px 6px' }}>1</td>
               <td style={{ padding: '5px 6px' }}>
-                <div style={{ fontWeight: 600 }}>{planName || '—'} Subscription Plan For {durationLabel(durationMonths)}</div>
+                <div style={{ fontWeight: 600 }}>
+                  {planName === 'RIS'
+                    ? 'RIS (Radiology Information System) Plan'
+                    : `${planName || '—'} Subscription Plan For ${durationLabel(durationMonths)}`}
+                </div>
+                {planName === 'RIS' && (
+                  <div style={{ color: '#3b5bdb', marginTop: 2, fontSize: 9 }}>Includes: Billing Module + Reporting Module</div>
+                )}
                 {patientRegistrations && (
                   <div style={{ color: '#3b5bdb', marginTop: 2 }}>{patientRegistrations}</div>
                 )}

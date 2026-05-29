@@ -7,7 +7,7 @@ import QuotationPreview from './QuotationPreview'
 import AgreementPreview from './AgreementPreview'
 import { fmtInr } from '@/lib/amountInWords'
 
-type PlanName = 'Starter' | 'Growth' | 'Leader' | 'Enterprise'
+type PlanName = 'Starter' | 'Growth' | 'Leader' | 'Enterprise' | 'RIS'
 type DurationOption = '1' | '3' | '6' | '12' | 'custom'
 type DiscountType = 'percent' | 'inr'
 
@@ -16,6 +16,7 @@ const MONTHLY_RATES: Record<PlanName, number> = {
   Growth: 750,
   Leader: 1000,
   Enterprise: 0,
+  RIS: 0, // flat rate set in handlePlanChange
 }
 
 interface PlanDefaults {
@@ -54,6 +55,14 @@ const PLAN_DEFAULTS: Record<PlanName, PlanDefaults> = {
       'All Leader Plan Features', 'WhatsApp Integration', 'Chain of Labs Management',
       'B2B Module', 'Corporate Module', 'Multiple Machines Interfacing',
       'Marketing Team Management', 'Dedicated Account Manager', 'Priority Support', 'And Many More',
+    ],
+  },
+  RIS: {
+    registrations: 'Radiology Information System',
+    features: [
+      'Billing Module', 'Patient Billing & Invoicing',
+      'Reporting Module', 'Radiology Report Generation',
+      'Report Sharing & Delivery', 'QR-Verified Reports',
     ],
   },
 }
@@ -276,11 +285,16 @@ export default function QuotationTab() {
 
   function handlePlanChange(name: PlanName | '') {
     setPlanName(name)
+    // Clear RIS-specific state whenever plan changes
+    setRisFeatures({ billing: false, reporting: false })
+    setRisCost(0)
     if (name && PLAN_DEFAULTS[name]) {
       const d = PLAN_DEFAULTS[name]
       setPatientRegistrations(d.registrations)
       setFeatures([...d.features])
-      if (name !== 'Enterprise') {
+      if (name === 'RIS') {
+        setRate(12000)
+      } else if (name !== 'Enterprise') {
         setRate(MONTHLY_RATES[name] * durationMonths)
       } else {
         setRate(0)
@@ -295,7 +309,7 @@ export default function QuotationTab() {
   function handleDurationChange(opt: DurationOption) {
     setDurationOption(opt)
     const months = opt === 'custom' ? durationCustomMonths : Number(opt)
-    if (planName && planName !== 'Enterprise') {
+    if (planName && planName !== 'Enterprise' && planName !== 'RIS') {
       setRate(MONTHLY_RATES[planName as PlanName] * months)
     }
   }
@@ -303,7 +317,7 @@ export default function QuotationTab() {
   function handleCustomMonthsChange(m: number) {
     const safe = Math.max(1, m)
     setDurationCustomMonths(safe)
-    if (planName && planName !== 'Enterprise') {
+    if (planName && planName !== 'Enterprise' && planName !== 'RIS') {
       setRate(MONTHLY_RATES[planName as PlanName] * safe)
     }
   }
@@ -624,8 +638,8 @@ export default function QuotationTab() {
                   <label className="block text-xs text-gray-500 mb-1">Plan</label>
                   <select className={inputCls} value={planName} onChange={(e) => handlePlanChange(e.target.value as PlanName | '')} disabled={isReadOnly}>
                     <option value="">Select a plan</option>
-                    {(['Starter', 'Growth', 'Leader', 'Enterprise'] as PlanName[]).map((p) => (
-                      <option key={p} value={p}>{p}</option>
+                    {(['Starter', 'Growth', 'Leader', 'Enterprise', 'RIS'] as PlanName[]).map((p) => (
+                      <option key={p} value={p}>{p === 'RIS' ? 'RIS (Billing + Reporting)' : p}</option>
                     ))}
                   </select>
                 </div>
@@ -864,58 +878,7 @@ export default function QuotationTab() {
                 </div>
               </div>
 
-              {/* RIS — Leader and Enterprise only */}
-              {(planName === 'Leader' || planName === 'Enterprise') && (
-                <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">RIS</p>
-                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 normal-case">Leader & Enterprise</span>
-                  </div>
-                  <p className="text-xs text-gray-400">Radiology Information System modules</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="flex items-start gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={risFeatures.billing}
-                        onChange={(e) => setRisFeatures((f) => ({ ...f, billing: e.target.checked }))}
-                        disabled={isReadOnly}
-                        className="mt-0.5"
-                      />
-                      <div>
-                        <div className="text-xs font-medium text-gray-800">Billing</div>
-                        <div className="text-xs text-gray-400">Patient billing & invoicing</div>
-                      </div>
-                    </label>
-                    <label className="flex items-start gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={risFeatures.reporting}
-                        onChange={(e) => setRisFeatures((f) => ({ ...f, reporting: e.target.checked }))}
-                        disabled={isReadOnly}
-                        className="mt-0.5"
-                      />
-                      <div>
-                        <div className="text-xs font-medium text-gray-800">Reporting</div>
-                        <div className="text-xs text-gray-400">Radiology report generation</div>
-                      </div>
-                    </label>
-                  </div>
-                  {(risFeatures.billing || risFeatures.reporting) && (
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">RIS Cost (₹)</label>
-                      <input
-                        className={inputCls}
-                        type="number"
-                        min={0}
-                        value={risCost || ''}
-                        onChange={(e) => setRisCost(Math.max(0, Number(e.target.value)))}
-                        disabled={isReadOnly}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
+
 
               {/* Agreement form sections — only when toggle on */}
               {includeAgreement && (
