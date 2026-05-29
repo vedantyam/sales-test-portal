@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { rows } = await db.query(
-    `SELECT id, name, email, department, joining_date, is_active, created_at
+    `SELECT id, name, email, department, phone, joining_date, is_active, created_at
      FROM employees ${where}
      ORDER BY created_at DESC LIMIT $${i++} OFFSET $${i++}`,
     [...params, limit, offset]
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   if (auth.error) return auth.error
 
   const body = await request.json().catch(() => ({}))
-  const { name, email, department, joining_date } = body
+  const { name, email, department, joining_date, phone } = body
   const adminId = auth.user!.sub
 
   if (!name?.trim() || !department?.trim()) {
@@ -67,10 +67,10 @@ export async function POST(request: NextRequest) {
   const prefix = getKeyPrefix(key)
 
   const { rows } = await db.query(
-    `INSERT INTO employees (name, email, department, joining_date, access_key_hash, access_key_prefix, access_key_plain, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-     RETURNING id, name, email, department, joining_date, is_active, created_at, access_key_plain`,
-    [name.trim(), email?.trim() || null, department.trim(), joining_date || null, hash, prefix, key, adminId]
+    `INSERT INTO employees (name, email, department, phone, joining_date, access_key_hash, access_key_prefix, access_key_plain, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     RETURNING id, name, email, department, phone, joining_date, is_active, created_at, access_key_plain`,
+    [name.trim(), email?.trim() || null, department.trim(), phone?.trim() || null, joining_date || null, hash, prefix, key, adminId]
   )
 
   if (email?.trim()) {

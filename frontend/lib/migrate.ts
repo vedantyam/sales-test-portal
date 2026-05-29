@@ -277,6 +277,10 @@ const statements = [
   // Phase 3: RIS module for Leader/Enterprise plans
   `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ris_features JSONB DEFAULT '{}'`,
   `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ris_cost NUMERIC DEFAULT 0`,
+
+  // Phase 3: phone numbers for employees and admins
+  `ALTER TABLE employees ADD COLUMN IF NOT EXISTS phone TEXT`,
+  `ALTER TABLE admins ADD COLUMN IF NOT EXISTS phone TEXT`,
 ]
 
 async function doMigrations(): Promise<void> {

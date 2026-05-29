@@ -10,13 +10,14 @@ interface EmployeeFormProps {
   open: boolean
   employee?: Employee | null
   onClose: () => void
-  onSave: (data: { name: string; email: string; department: string }) => Promise<void>
+  onSave: (data: { name: string; email: string; department: string; phone?: string }) => Promise<void>
 }
 
 export default function EmployeeForm({ open, employee, onClose, onSave }: EmployeeFormProps) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [department, setDepartment] = useState('')
+  const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -25,10 +26,12 @@ export default function EmployeeForm({ open, employee, onClose, onSave }: Employ
       setName(employee.name)
       setEmail(employee.email)
       setDepartment(employee.department)
+      setPhone(employee.phone || '')
     } else {
       setName('')
       setEmail('')
       setDepartment('')
+      setPhone('')
     }
     setErrors({})
   }, [employee, open])
@@ -48,7 +51,7 @@ export default function EmployeeForm({ open, employee, onClose, onSave }: Employ
     if (Object.keys(errs).length) { setErrors(errs); return }
     setLoading(true)
     try {
-      await onSave({ name: name.trim(), email: email.trim(), department: department.trim() })
+      await onSave({ name: name.trim(), email: email.trim(), department: department.trim(), phone: phone.trim() || undefined })
       onClose()
     } finally {
       setLoading(false)
@@ -102,6 +105,14 @@ export default function EmployeeForm({ open, employee, onClose, onSave }: Employ
           </select>
           {errors.department && <p className="text-xs text-red-600 mt-1">{errors.department}</p>}
         </div>
+
+        <Input
+          label="Phone Number (optional)"
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="+91 XXXXX XXXXX"
+        />
 
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={loading}>

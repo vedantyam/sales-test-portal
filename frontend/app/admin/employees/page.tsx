@@ -46,7 +46,7 @@ export default function EmployeesPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; email: string; department: string }) => {
+    mutationFn: async (data: { name: string; email: string; department: string; phone?: string }) => {
       const res = await adminApi.post('/admin/employees', data)
       return res.data
     },
@@ -59,7 +59,7 @@ export default function EmployeesPage() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { name: string; email: string; department: string } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { name: string; email: string; department: string; phone?: string } }) => {
       await adminApi.patch(`/admin/employees/${id}`, data)
     },
     onSuccess: () => {
@@ -101,7 +101,7 @@ export default function EmployeesPage() {
       e.department.toLowerCase().includes(search.toLowerCase())
   )
 
-  async function handleSave(data: { name: string; email: string; department: string }) {
+  async function handleSave(data: { name: string; email: string; department: string; phone?: string }) {
     if (editingEmployee) {
       await updateMutation.mutateAsync({ id: editingEmployee.id, data })
     } else {
@@ -145,6 +145,7 @@ export default function EmployeesPage() {
                   <th className="text-center px-3 py-3 font-medium w-12">S.No</th>
                   <th className="text-left px-5 py-3 font-medium">Name</th>
                   <th className="text-left px-5 py-3 font-medium">Department</th>
+                  <th className="text-left px-5 py-3 font-medium">Phone</th>
                   <th className="text-left px-5 py-3 font-medium">Key</th>
                   <th className="text-left px-5 py-3 font-medium">Status</th>
                   <th className="text-right px-5 py-3 font-medium">Actions</th>
@@ -159,6 +160,7 @@ export default function EmployeesPage() {
                       {emp.email && <p className="text-xs text-gray-400">{emp.email}</p>}
                     </td>
                     <td className="px-5 py-3 text-gray-600">{emp.department}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs">{emp.phone || '—'}</td>
                     <td className="px-5 py-3">
                       <button
                         onClick={() => copyKey(emp.id)}

@@ -3,6 +3,7 @@ export interface Employee {
   name: string
   email: string
   department: string
+  phone?: string | null
   is_active: boolean
   created_at: string
   access_key_plain?: string | null
