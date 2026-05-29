@@ -21,30 +21,45 @@
   }
 }
 
-/* ── Print: show ONLY the quotation preview ─────────────────────────── */
+/* ── Print styles ────────────────────────────────────────────────────── */
 @media print {
   @page {
     size: A4 portrait;
     margin: 10mm;
   }
 
-  /* Hide everything, then reveal only the quotation print area */
-  body * {
-    visibility: hidden !important;
-  }
+  /* Default: show only quotation */
+  body * { visibility: hidden !important; }
 
   #quotation-print-area,
-  #quotation-print-area * {
-    visibility: visible !important;
-  }
+  #quotation-print-area * { visibility: visible !important; }
 
   #quotation-print-area {
     position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
+    top: 0 !important; left: 0 !important;
     width: 100% !important;
     background: white !important;
-    /* Preserve background colours (dark header, blue bars) */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* printing-quotation: same as default */
+  .printing-quotation #agreement-print-area { display: none !important; }
+
+  /* printing-agreement: show only agreement */
+  .printing-agreement * { visibility: hidden !important; }
+
+  .printing-agreement #agreement-print-area,
+  .printing-agreement #agreement-print-area * { visibility: visible !important; }
+
+  .printing-agreement #quotation-print-area { display: none !important; }
+
+  .printing-agreement #agreement-print-area {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    width: 100% !important;
+    display: block !important;
+    background: white !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }

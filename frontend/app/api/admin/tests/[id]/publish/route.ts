@@ -8,7 +8,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const auth = requireAdmin(request)
   if (auth.error) return auth.error
 
-  const { rows: existing } = await db.query('SELECT sections FROM tests WHERE id=$1', [params.id])
+  const { rows: existing } = await db.query('SELECT sections FROM tests WHERE id=$1 AND tenant_id IS NULL', [params.id])
   if (!existing[0]) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
 
   const sections = existing[0].sections as any[]

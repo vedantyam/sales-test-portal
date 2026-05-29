@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
   const { rows: candidates } = await db.query(
     `SELECT id, name, department, joining_date, access_key_hash
-     FROM employees WHERE access_key_prefix = $1 AND is_active = true`,
+     FROM employees WHERE access_key_prefix = $1 AND is_active = true AND tenant_id IS NULL`,
     [prefix]
   )
 

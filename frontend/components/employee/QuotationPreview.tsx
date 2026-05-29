@@ -17,6 +17,7 @@ const TC_ITEMS = [
 
 export interface QuotationPreviewProps {
   quoteNumber?: string | null
+  sequenceNumber?: string | null
   clientName: string
   clientAddress?: string
   clientPhone?: string
@@ -59,6 +60,7 @@ function durationLabel(months: number): string {
 
 export default function QuotationPreview({
   quoteNumber,
+  sequenceNumber,
   clientName,
   clientAddress,
   clientPhone,
@@ -142,7 +144,7 @@ export default function QuotationPreview({
             Quotation
           </div>
           <div className="font-bold text-white" style={{ fontSize: 16, marginTop: 3 }}>
-            {quoteNumber || '#QT-——————'}
+            {sequenceNumber ? `#${sequenceNumber}` : (quoteNumber || '#——————')}
           </div>
         </div>
       </div>

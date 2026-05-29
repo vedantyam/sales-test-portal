@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const department = searchParams.get('department') || ''
   const offset = (page - 1) * limit
 
-  let where = 'WHERE 1=1'
+  let where = 'WHERE tenant_id IS NULL'
   const params: unknown[] = []
   let i = 1
 
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { rows } = await db.query(
-    `SELECT id, name, email, department, joining_date, is_active, created_at, access_key_plain
+    `SELECT id, name, email, department, joining_date, is_active, created_at
      FROM employees ${where}
      ORDER BY created_at DESC LIMIT $${i++} OFFSET $${i++}`,
     [...params, limit, offset]

@@ -9,7 +9,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (auth.error) return auth.error
 
   const { rows } = await db.query(
-    `UPDATE tests SET status='draft', updated_at=NOW() WHERE id=$1 RETURNING id, title, status`,
+    `UPDATE tests SET status='draft', updated_at=NOW() WHERE id=$1 AND tenant_id IS NULL RETURNING id, title, status`,
     [params.id]
   )
   if (!rows[0]) return NextResponse.json({ error: 'Not found.' }, { status: 404 })

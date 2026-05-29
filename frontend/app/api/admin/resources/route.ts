@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   if (auth.error) return auth.error
 
   const { rows } = await db.query(
-    'SELECT id, title, description, url, category, folder_id, created_at FROM resources ORDER BY created_at DESC'
+    'SELECT id, title, description, url, category, folder_id, created_at FROM resources WHERE tenant_id IS NULL ORDER BY created_at DESC'
   )
   return NextResponse.json({ resources: rows })
 }

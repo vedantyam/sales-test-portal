@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: { testId: 
   const { testId } = params
 
   const { rows: testRows } = await db.query(
-    'SELECT id, title, sections FROM tests WHERE id = $1',
+    'SELECT id, title, sections FROM tests WHERE id = $1 AND tenant_id IS NULL',
     [testId]
   )
   if (!testRows[0]) return NextResponse.json({ error: 'Test not found' }, { status: 404 })

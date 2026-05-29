@@ -9,13 +9,16 @@ export async function GET(request: NextRequest) {
   await ensureMigrated()
   const auth = getAuthUser(request)
   if (auth.error) return auth.error
+  if (auth.user!.role !== 'employee') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { rows } = await db.query(
-    `SELECT signature_image_url, logo_image_url FROM company_settings LIMIT 1`
+    `SELECT signature_image_url, logo_image_url, signatory_name, signatory_designation FROM company_settings LIMIT 1`
   )
 
   return NextResponse.json({
     signature_image_url: rows[0]?.signature_image_url || null,
     logo_image_url: rows[0]?.logo_image_url || null,
+    signatory_name: rows[0]?.signatory_name || null,
+    signatory_designation: rows[0]?.signatory_designation || null,
   })
 }

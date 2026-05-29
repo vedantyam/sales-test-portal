@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const { is_active } = body
 
   const { rows } = await db.query(
-    `UPDATE employees SET is_active=$1 WHERE id=$2 RETURNING id, name, is_active`,
+    `UPDATE employees SET is_active=$1 WHERE id=$2 AND tenant_id IS NULL RETURNING id, name, is_active`,
     [is_active, params.id]
   )
 

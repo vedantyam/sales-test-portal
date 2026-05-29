@@ -20,12 +20,21 @@ export default function EmployeesPage() {
   const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [fetchingKeyId, setFetchingKeyId] = useState<string | null>(null)
 
-  function copyKey(empId: string, key: string) {
-    navigator.clipboard.writeText(key).then(() => {
+  async function copyKey(empId: string) {
+    setFetchingKeyId(empId)
+    try {
+      const res = await adminApi.get(`/admin/employees/${empId}/key`)
+      const key: string = res.data.access_key
+      await navigator.clipboard.writeText(key)
       setCopiedId(empId)
       setTimeout(() => setCopiedId(null), 2000)
-    })
+    } catch {
+      setNotification({ msg: 'Failed to fetch key', type: 'error' })
+    } finally {
+      setFetchingKeyId(null)
+    }
   }
 
   const { data: employees, isLoading } = useQuery<Employee[]>({
@@ -136,7 +145,7 @@ export default function EmployeesPage() {
                   <th className="text-center px-3 py-3 font-medium w-12">S.No</th>
                   <th className="text-left px-5 py-3 font-medium">Name</th>
                   <th className="text-left px-5 py-3 font-medium">Department</th>
-                  <th className="text-left px-5 py-3 font-medium">Login Code</th>
+                  <th className="text-left px-5 py-3 font-medium">Key</th>
                   <th className="text-left px-5 py-3 font-medium">Status</th>
                   <th className="text-right px-5 py-3 font-medium">Actions</th>
                 </tr>
@@ -151,30 +160,27 @@ export default function EmployeesPage() {
                     </td>
                     <td className="px-5 py-3 text-gray-600">{emp.department}</td>
                     <td className="px-5 py-3">
-                      {emp.access_key_plain ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs text-gray-700 bg-gray-100 rounded px-1.5 py-0.5 select-all">
-                            {emp.access_key_plain}
-                          </span>
-                          <button
-                            onClick={() => copyKey(emp.id, emp.access_key_plain!)}
-                            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-                            title="Copy login code"
-                          >
-                            {copiedId === emp.id ? (
-                              <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            ) : (
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
+                      <button
+                        onClick={() => copyKey(emp.id)}
+                        disabled={fetchingKeyId === emp.id}
+                        className="text-gray-400 hover:text-gray-600 flex-shrink-0 disabled:opacity-40"
+                        title="Copy login code"
+                      >
+                        {copiedId === emp.id ? (
+                          <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : fetchingKeyId === emp.id ? (
+                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </button>
                     </td>
                     <td className="px-5 py-3">
                       <Badge variant={emp.is_active ? 'green' : 'gray'}>

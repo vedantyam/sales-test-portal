@@ -74,11 +74,13 @@ const FEATURES_MASTER = [
 interface QuotationRow {
   id: string
   quote_number: string
+  sequence_number?: string | null
   client_name: string
   plan_name: string
   total_amount: number
   quote_date: string
   status: string
+  creator_name?: string | null
 }
 
 function today() {
@@ -93,10 +95,9 @@ export default function QuotationTab() {
   const [clientAddress, setClientAddress] = useState('')
   const [clientPhone, setClientPhone] = useState('')
   const [placeOfSupply, setPlaceOfSupply] = useState('')
-  // Salesperson
+  // Creator info — auto-fetched from profile, never editable
   const [displayName, setDisplayName] = useState('')
   const [salespersonEmail, setSalespersonEmail] = useState('')
-  const [saveDetails, setSaveDetails] = useState(false)
   // Plan
   const [planName, setPlanName] = useState<PlanName | ''>('')
   const [rate, setRate] = useState(0)
@@ -120,6 +121,7 @@ export default function QuotationTab() {
   const [expiryDate, setExpiryDate] = useState(today())
   // Save state
   const [savedQuoteNumber, setSavedQuoteNumber] = useState<string | null>(null)
+  const [savedSeqNumber, setSavedSeqNumber] = useState<string | null>(null)
   const [savedQuotationId, setSavedQuotationId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isReadOnly, setIsReadOnly] = useState(false)
@@ -139,7 +141,6 @@ export default function QuotationTab() {
   const [agClientContactPerson, setAgClientContactPerson] = useState('')
   const [agClientEmail, setAgClientEmail] = useState('')
   const [agClientGstin, setAgClientGstin] = useState('')
-  const [agSalespersonMobile, setAgSalespersonMobile] = useState('')
   const [agInterfacingDirection, setAgInterfacingDirection] = useState('Unidirectional')
   const [agProcessingLab, setAgProcessingLab] = useState(false)
   const [agProcessingLabCount, setAgProcessingLabCount] = useState(1)
@@ -153,6 +154,7 @@ export default function QuotationTab() {
   const [agClientSignatoryName, setAgClientSignatoryName] = useState('')
   const [agClientSignatoryDesignation, setAgClientSignatoryDesignation] = useState('')
 
+  // Auto-fetch creator info from profile (read-only)
   useEffect(() => {
     api.get('/employee/profile').then((r) => {
       if (r.data.profile) {
@@ -253,7 +255,6 @@ export default function QuotationTab() {
       client_contact_person: agClientContactPerson,
       client_email: agClientEmail,
       client_gstin: agClientGstin,
-      salesperson_mobile: agSalespersonMobile,
       interfacing_direction: agInterfacingDirection,
       processing_lab: agProcessingLab,
       processing_lab_count: agProcessingLabCount,
@@ -294,14 +295,12 @@ export default function QuotationTab() {
       })
       const qt = res.data.quotation
       setSavedQuoteNumber(qt.quote_number)
+      setSavedSeqNumber(qt.sequence_number || null)
       setSavedQuotationId(qt.id)
       setSaveMsg('Saved as draft!')
       setTimeout(() => setSaveMsg(''), 3000)
       refetchHistory()
       queryClient.invalidateQueries({ queryKey: ['employee-quotations'] })
-      if (saveDetails && displayName) {
-        await api.put('/employee/profile', { display_name: displayName, email: salespersonEmail }).catch(() => {})
-      }
     } catch {
       setSaveMsg('Save failed. Try again.')
       setTimeout(() => setSaveMsg(''), 3000)
@@ -316,7 +315,7 @@ export default function QuotationTab() {
     }
     const original = document.title
     const labName = clientName.replace(/\s+/g, '_') || 'Client'
-    const qtNum = savedQuoteNumber || 'DRAFT'
+    const qtNum = savedSeqNumber ? savedSeqNumber : (savedQuoteNumber || 'DRAFT')
     document.title = `Flabs_Quotation_${labName}_${qtNum}`
     document.body.classList.add('printing-quotation')
     window.print()
@@ -327,7 +326,7 @@ export default function QuotationTab() {
   function handleDownloadAgreementPDF() {
     const original = document.title
     const labName = clientName.replace(/\s+/g, '_') || 'Client'
-    const qtNum = savedQuoteNumber || 'DRAFT'
+    const qtNum = savedSeqNumber ? savedSeqNumber : (savedQuoteNumber || 'DRAFT')
     document.title = `Flabs_Agreement_${labName}_${qtNum}`
     document.body.classList.add('printing-agreement')
     window.print()
@@ -336,7 +335,7 @@ export default function QuotationTab() {
   }
 
   function buildWhatsAppMsg() {
-    const qtNum = savedQuoteNumber || 'Pending'
+    const qtNum = savedSeqNumber ? `#${savedSeqNumber}` : (savedQuoteNumber || 'Pending')
     return (
       `Dear ${clientName || 'Team'},\n\n` +
       `Please find the quotation from Flabs (Diagnoshuttle Private Limited) for the ${planName} Subscription Plan.\n\n` +
@@ -378,6 +377,7 @@ export default function QuotationTab() {
       setQuoteDate(qt.quote_date?.split('T')[0] || today())
       setExpiryDate(qt.expiry_date?.split('T')[0] || today())
       setSavedQuoteNumber(qt.quote_number)
+      setSavedSeqNumber(qt.sequence_number || null)
       setSavedQuotationId(qt.id)
       setIsReadOnly(true)
       setHistoryOpen(false)
@@ -389,7 +389,6 @@ export default function QuotationTab() {
       setAgClientContactPerson(String(ads.client_contact_person || ''))
       setAgClientEmail(String(ads.client_email || ''))
       setAgClientGstin(String(ads.client_gstin || ''))
-      setAgSalespersonMobile(String(ads.salesperson_mobile || ''))
       setAgInterfacingDirection(String(ads.interfacing_direction || 'Unidirectional'))
       setAgProcessingLab(Boolean(ads.processing_lab))
       setAgProcessingLabCount(Number(ads.processing_lab_count) || 1)
@@ -413,13 +412,13 @@ export default function QuotationTab() {
     setDurationOption('12'); setDurationCustomMonths(1)
     setDiscountType('percent'); setDiscountValue(0)
     setQuoteDate(today()); setExpiryDate(today())
-    setSavedQuoteNumber(null); setSavedQuotationId(null)
+    setSavedQuoteNumber(null); setSavedSeqNumber(null); setSavedQuotationId(null)
     setIsReadOnly(false); setSaveMsg('')
     setZeroGst(false)
     setFeatureSearch(''); setFeatureDropdownOpen(false)
     setIncludeAgreement(false); setPreviewTab('quotation')
     setAgClientContactPerson(''); setAgClientEmail(''); setAgClientGstin('')
-    setAgSalespersonMobile(''); setAgInterfacingDirection('Unidirectional')
+    setAgInterfacingDirection('Unidirectional')
     setAgProcessingLab(false); setAgProcessingLabCount(1)
     setAgWhatsappApi(false); setAgRazorpay(false)
     setAgCollectionCenter(false); setAgCollectionCenterCount(1)
@@ -441,16 +440,21 @@ export default function QuotationTab() {
       {/* Outer: fixed height so page never scrolls. print: revert to auto. */}
       <div className="flex flex-col print:block print:h-auto" style={{ height: 'calc(100vh - 200px)', minHeight: 560 }}>
 
-        {/* Top bar — History button + read-only banner */}
+        {/* Top bar — sequence number + read-only banner + history button */}
         <div className="flex items-center justify-between mb-2 flex-shrink-0 no-print">
-          {isReadOnly ? (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-2">
-              Viewing saved quotation (read-only)
-              <button onClick={resetForm} className="font-medium underline ml-1">New</button>
-            </div>
-          ) : (
-            <div />
-          )}
+          <div className="flex items-center gap-3">
+            {savedSeqNumber && (
+              <span className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1">
+                Quotation #{savedSeqNumber}
+              </span>
+            )}
+            {isReadOnly && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-2">
+                Viewing saved quotation (read-only)
+                <button onClick={resetForm} className="font-medium underline ml-1">New</button>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => setHistoryOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
@@ -492,23 +496,12 @@ export default function QuotationTab() {
                 </div>
               </div>
 
-              {/* Your Details */}
-              <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-                <p className={sectionLabel}>Your Details — Lead Closed By</p>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Display Name</label>
-                  <input className={inputCls} value={displayName} onChange={(e) => setDisplayName(e.target.value)} disabled={isReadOnly} placeholder="Your name" />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Email</label>
-                  <input className={inputCls} type="email" value={salespersonEmail} onChange={(e) => setSalespersonEmail(e.target.value)} disabled={isReadOnly} placeholder="your@email.com" />
-                </div>
-                {!isReadOnly && (
-                  <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
-                    <input type="checkbox" checked={saveDetails} onChange={(e) => setSaveDetails(e.target.checked)} className="rounded" />
-                    Save my details for next time
-                  </label>
-                )}
+              {/* Created By — auto-fetched, read-only */}
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <p className={sectionLabel}>Created By</p>
+                <p className="text-sm text-gray-700">
+                  {displayName || '—'}{salespersonEmail ? ` (${salespersonEmail})` : ''}
+                </p>
               </div>
 
               {/* Plan */}
@@ -760,15 +753,6 @@ export default function QuotationTab() {
                     </div>
                   </div>
 
-                  {/* Salesperson Mobile */}
-                  <div className="bg-white rounded-xl border border-blue-100 p-4 space-y-3">
-                    <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-3">Agreement — Salesperson</p>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Salesperson Mobile</label>
-                      <input className={inputCls} value={agSalespersonMobile} onChange={(e) => setAgSalespersonMobile(e.target.value)} disabled={isReadOnly} placeholder="+91 XXXXX XXXXX" />
-                    </div>
-                  </div>
-
                   {/* Machine Interfacing Direction — only if machines > 0 */}
                   {machinesCount > 0 && (
                     <div className="bg-white rounded-xl border border-blue-100 p-4 space-y-3">
@@ -968,6 +952,7 @@ export default function QuotationTab() {
               >
                 <QuotationPreview
                   quoteNumber={savedQuoteNumber}
+                  sequenceNumber={savedSeqNumber}
                   clientName={clientName}
                   clientAddress={clientAddress}
                   clientPhone={clientPhone}
@@ -1004,6 +989,7 @@ export default function QuotationTab() {
                 >
                   <AgreementPreview
                     quoteNumber={savedQuoteNumber}
+                    sequenceNumber={savedSeqNumber}
                     clientName={clientName}
                     clientAddress={clientAddress}
                     clientPhone={clientPhone}
@@ -1045,6 +1031,7 @@ export default function QuotationTab() {
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-white border-b border-gray-200">
                     <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plan</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
@@ -1058,6 +1045,9 @@ export default function QuotationTab() {
                         onClick={() => loadHistoryRow(q)}
                         className="hover:bg-gray-50 cursor-pointer transition-colors"
                       >
+                        <td className="px-4 py-3 text-xs font-mono text-blue-700">
+                          {q.sequence_number ? `#${q.sequence_number}` : '—'}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-gray-900 text-xs">{q.client_name}</div>
                           <div className="text-gray-400 text-xs mt-0.5">{q.quote_date?.split('T')[0] || '—'}</div>

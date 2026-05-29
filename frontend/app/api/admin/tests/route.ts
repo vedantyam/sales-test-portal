@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
             jsonb_array_length(sections) as section_count,
             (SELECT COALESCE(SUM(jsonb_array_length(s->'questions')), 0)
              FROM jsonb_array_elements(sections) s) as total_questions
-     FROM tests ORDER BY created_at DESC`
+     FROM tests WHERE tenant_id IS NULL ORDER BY created_at DESC`
   )
   return NextResponse.json({ tests: rows })
 }

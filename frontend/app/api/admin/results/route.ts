@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
      JOIN employees e ON e.id = r.employee_id
      JOIN tests t ON t.id = r.test_id
      LEFT JOIN test_sessions ts ON ts.assignment_id = r.assignment_id
+     WHERE r.tenant_id IS NULL
      ORDER BY r.created_at DESC`
   )
   return NextResponse.json({ results: rows })

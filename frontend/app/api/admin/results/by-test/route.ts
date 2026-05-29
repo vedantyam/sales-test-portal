@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     JOIN test_assignments ta ON ta.test_id = t.id
     JOIN test_sessions ts ON ts.assignment_id = ta.id
     LEFT JOIN results r ON r.assignment_id = ta.id
-    WHERE ta.status IN ('submitted', 'auto_submitted')
+    WHERE ta.status IN ('submitted', 'auto_submitted') AND t.tenant_id IS NULL
     GROUP BY t.id, t.title
     ORDER BY last_submission DESC
   `)

@@ -11,9 +11,9 @@ export async function GET(request: NextRequest) {
   if (auth.error) return auth.error
 
   const [empRow, testsRow, resultsRow, auditRows] = await Promise.all([
-    db.query('SELECT COUNT(*) FROM employees WHERE is_active=true'),
-    db.query(`SELECT COUNT(*) FROM tests WHERE status='published'`),
-    db.query(`SELECT COUNT(*) FROM results WHERE is_finalised=false`),
+    db.query('SELECT COUNT(*) FROM employees WHERE is_active=true AND tenant_id IS NULL'),
+    db.query(`SELECT COUNT(*) FROM tests WHERE status='published' AND tenant_id IS NULL`),
+    db.query(`SELECT COUNT(*) FROM results WHERE is_finalised=false AND tenant_id IS NULL`),
     db.query(
       `SELECT id, user_id, action, resource, resource_id, created_at
        FROM audit_logs ORDER BY created_at DESC LIMIT 20`

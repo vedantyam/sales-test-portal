@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { rows } = await db.query(
-    'SELECT id, name, email, password_hash FROM admins WHERE email = $1',
+    'SELECT id, name, email, password_hash FROM admins WHERE email = $1 AND tenant_id IS NULL',
     [(email as string).toLowerCase().trim()]
   )
 

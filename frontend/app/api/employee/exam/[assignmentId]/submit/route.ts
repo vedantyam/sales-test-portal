@@ -50,6 +50,7 @@ async function submitExam(assignmentId: string, testId: string, employeeId: stri
 export async function POST(request: NextRequest, { params }: { params: { assignmentId: string } }) {
   const auth = getAuthUser(request)
   if (auth.error) return auth.error
+  if (auth.user!.role !== 'employee') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const employeeId = auth.user!.sub
   const { assignmentId } = params
 

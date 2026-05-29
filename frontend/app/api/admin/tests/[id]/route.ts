@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const auth = requireAdmin(request)
   if (auth.error) return auth.error
 
-  const { rows } = await db.query('SELECT * FROM tests WHERE id=$1', [params.id])
+  const { rows } = await db.query('SELECT * FROM tests WHERE id=$1 AND tenant_id IS NULL', [params.id])
   if (!rows[0]) return NextResponse.json({ error: 'Test not found.' }, { status: 404 })
   return NextResponse.json({ test: rows[0] })
 }
@@ -34,7 +34,7 @@ async function handleUpdate(request: NextRequest, id: string) {
   const body = await request.json().catch(() => ({}))
   const { title, description, guidelines_text, duration_minutes, pass_score_pct, sections } = body
 
-  const { rows: existing } = await db.query('SELECT status FROM tests WHERE id=$1', [id])
+  const { rows: existing } = await db.query('SELECT status FROM tests WHERE id=$1 AND tenant_id IS NULL', [id])
   if (!existing[0]) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
 
   const normalized = normalizeSections(sections)
@@ -60,7 +60,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   const auth = requireAdmin(request)
   if (auth.error) return auth.error
 
-  const { rows: existing } = await db.query('SELECT status FROM tests WHERE id=$1', [params.id])
+  const { rows: existing } = await db.query('SELECT status FROM tests WHERE id=$1 AND tenant_id IS NULL', [params.id])
   if (!existing[0]) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
 
   const { rows: active } = await db.query(

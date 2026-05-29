@@ -28,16 +28,18 @@ export async function PUT(request: NextRequest) {
   const current = existing[0]
   const newSig = 'signature_image_url' in body ? (body.signature_image_url ?? null) : (current?.signature_image_url ?? null)
   const newLogo = 'logo_image_url' in body ? (body.logo_image_url ?? null) : (current?.logo_image_url ?? null)
+  const newSignatoryName = 'signatory_name' in body ? (body.signatory_name ?? null) : (current?.signatory_name ?? null)
+  const newSignatoryDesignation = 'signatory_designation' in body ? (body.signatory_designation ?? null) : (current?.signatory_designation ?? null)
 
   if (current) {
     await db.query(
-      `UPDATE company_settings SET signature_image_url = $1, logo_image_url = $2, updated_at = now() WHERE id = $3`,
-      [newSig, newLogo, current.id]
+      `UPDATE company_settings SET signature_image_url = $1, logo_image_url = $2, signatory_name = $3, signatory_designation = $4, updated_at = now() WHERE id = $5`,
+      [newSig, newLogo, newSignatoryName, newSignatoryDesignation, current.id]
     )
   } else {
     await db.query(
-      `INSERT INTO company_settings (signature_image_url, logo_image_url) VALUES ($1, $2)`,
-      [newSig, newLogo]
+      `INSERT INTO company_settings (signature_image_url, logo_image_url, signatory_name, signatory_designation) VALUES ($1, $2, $3, $4)`,
+      [newSig, newLogo, newSignatoryName, newSignatoryDesignation]
     )
   }
 

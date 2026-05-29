@@ -266,6 +266,13 @@ const statements = [
 
   // Zero GST option
   `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS zero_gst BOOLEAN DEFAULT false`,
+
+  // Phase 1: atomic sequence number starting from 000920, creator tracking
+  `CREATE SEQUENCE IF NOT EXISTS quotation_seq START 920 INCREMENT 1`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS sequence_number TEXT UNIQUE`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS created_by UUID`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS creator_name TEXT`,
+  `ALTER TABLE quotations ADD COLUMN IF NOT EXISTS creator_email TEXT`,
 ]
 
 async function doMigrations(): Promise<void> {

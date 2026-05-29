@@ -17,7 +17,7 @@ async function handleUpdate(request: NextRequest, id: string) {
 
   const { rows } = await db.query(
     `UPDATE employees SET name=$1, email=$2, department=$3, joining_date=COALESCE($4, joining_date)
-     WHERE id=$5 RETURNING id, name, email, department, joining_date, is_active, created_at`,
+     WHERE id=$5 AND tenant_id IS NULL RETURNING id, name, email, department, joining_date, is_active, created_at`,
     [name.trim(), email?.trim() || null, department.trim(), joining_date || null, id]
   )
 

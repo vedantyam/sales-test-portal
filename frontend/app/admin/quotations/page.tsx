@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { adminApi } from '@/lib/api'
 import QuotationPreview, { QuotationPreviewProps } from '@/components/employee/QuotationPreview'
@@ -17,6 +17,7 @@ type AdminTab = 'overview' | 'analytics' | 'settings'
 interface QuotationRow {
   id: string
   quote_number: string
+  sequence_number?: string | null
   client_name: string
   plan_name: string
   total_amount: number
@@ -35,6 +36,13 @@ interface QuotationRow {
   igst_amount: number
   sub_total: number
   salesperson_name?: string
+  machines_count?: number
+  machine_price?: number
+  machine_total?: number
+  duration_months?: number
+  discount_type?: string
+  discount_value?: number
+  discount_amount?: number
 }
 
 interface SalespersonSummary {
@@ -166,6 +174,85 @@ function ImageUploadCard({
   )
 }
 
+function SignatoryCard({
+  currentName,
+  currentDesignation,
+  onSaved,
+}: {
+  currentName: string | null
+  currentDesignation: string | null
+  onSaved: () => void
+}) {
+  const [name, setName] = useState(currentName || '')
+  const [designation, setDesignation] = useState(currentDesignation || '')
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState('')
+
+  useEffect(() => {
+    setName(currentName || '')
+    setDesignation(currentDesignation || '')
+  }, [currentName, currentDesignation])
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await adminApi.put('/admin/company-settings', {
+        signatory_name: name || null,
+        signatory_designation: designation || null,
+      })
+      onSaved()
+      setToast('Saved!')
+      setTimeout(() => setToast(''), 3000)
+    } catch {
+      setToast('Save failed')
+      setTimeout(() => setToast(''), 3000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">Signatory Details</h3>
+        <p className="text-xs text-gray-500">Shown below the authorized signature on all quotations.</p>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1">Signatory Name</label>
+        <input
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Harsh Kumar"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1">Designation</label>
+        <input
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+          value={designation}
+          onChange={(e) => setDesignation(e.target.value)}
+          placeholder="e.g. Sales Director"
+        />
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save Signatory'}
+        </button>
+        {toast && (
+          <span className={`text-xs ${toast === 'Saved!' ? 'text-green-600' : 'text-red-600'}`}>
+            {toast}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function SettingsTab() {
   const queryClient = useQueryClient()
 
@@ -190,6 +277,11 @@ function SettingsTab() {
         currentUrl={data?.logo_image_url ?? null}
         accept="image/png,image/jpeg,image/svg+xml"
         previewMaxH={48}
+        onSaved={invalidate}
+      />
+      <SignatoryCard
+        currentName={data?.signatory_name ?? null}
+        currentDesignation={data?.signatory_designation ?? null}
         onSaved={invalidate}
       />
       <ImageUploadCard
@@ -510,6 +602,8 @@ function OverviewTab() {
   })
 
   const sig = settingsData?.settings?.signature_image_url || signatureImageUrl
+  const signatoryName = settingsData?.settings?.signatory_name || null
+  const signatoryDesignation = settingsData?.settings?.signatory_designation || null
 
   function openQuotationPreview(q: QuotationRow) {
     setPreviewQuotation(q)
@@ -520,6 +614,7 @@ function OverviewTab() {
     const q = previewQuotation
     const previewProps: QuotationPreviewProps = {
       quoteNumber: q.quote_number,
+      sequenceNumber: q.sequence_number,
       clientName: q.client_name,
       clientAddress: q.client_address,
       clientPhone: q.client_phone,
@@ -528,9 +623,19 @@ function OverviewTab() {
       rate: Number(q.plan_rate),
       patientRegistrations: q.patient_registrations,
       features: Array.isArray(q.features) ? q.features : [],
+      machinesCount: Number(q.machines_count) || 0,
+      machinePrice: Number(q.machine_price) || 0,
+      machineTotal: Number(q.machine_total) || 0,
+      durationMonths: Number(q.duration_months) || 12,
+      discountType: q.discount_type || 'none',
+      discountValue: Number(q.discount_value) || 0,
+      discountAmount: Number(q.discount_amount) || 0,
       quoteDate: q.quote_date?.split('T')[0],
       expiryDate: q.expiry_date?.split('T')[0],
       signatureImageUrl: sig,
+      logoImageUrl: settingsData?.settings?.logo_image_url || null,
+      signatoryName,
+      signatoryDesignation,
     }
     return (
       <div>

@@ -9,13 +9,14 @@ export async function GET(request: NextRequest) {
   await ensureMigrated()
   const auth = getAuthUser(request)
   if (auth.error) return auth.error
+  if (auth.user!.role !== 'employee') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { rows: folders } = await db.query(
-    'SELECT * FROM resource_folders ORDER BY name ASC'
+    'SELECT * FROM resource_folders WHERE tenant_id IS NULL ORDER BY name ASC'
   )
 
   const { rows: resources } = await db.query(
-    'SELECT id, title, description, url, category, folder_id, created_at FROM resources ORDER BY created_at DESC'
+    'SELECT id, title, description, url, category, folder_id, created_at FROM resources WHERE tenant_id IS NULL ORDER BY created_at DESC'
   )
 
   const foldersWithResources = folders.map((folder: any) => ({

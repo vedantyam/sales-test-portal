@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'window_end must be after window_start.' }, { status: 400 })
   }
 
-  const { rows: testRows } = await db.query('SELECT status FROM tests WHERE id=$1', [test_id])
+  const { rows: testRows } = await db.query('SELECT status FROM tests WHERE id=$1 AND tenant_id IS NULL', [test_id])
   if (!testRows[0] || testRows[0].status !== 'published') {
     return NextResponse.json({ error: 'Test must be published before assigning.' }, { status: 400 })
   }
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
   const test_id = searchParams.get('test_id')
   const employee_id = searchParams.get('employee_id')
 
-  let where = 'WHERE 1=1'
+  let where = 'WHERE ta.tenant_id IS NULL'
   const params: any[] = []
   let i = 1
   if (test_id) { where += ` AND ta.test_id=$${i++}`; params.push(test_id) }

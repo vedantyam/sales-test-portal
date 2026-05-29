@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   await ensureMigrated()
   const auth = getAuthUser(request)
   if (auth.error) return auth.error
+  if (auth.user!.role !== 'employee') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const employeeId = auth.user!.sub
 
   await db.query(
