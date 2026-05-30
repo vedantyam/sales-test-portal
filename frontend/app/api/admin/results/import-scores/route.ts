@@ -92,9 +92,15 @@ export async function POST(request: NextRequest) {
   }
 
   let finalised = 0
-  const subjectiveQuestions = sections
-    .flatMap((s: any) => s.questions)
-    .filter((q: any) => q.type === 'subjective')
+  const allQuestions = sections.flatMap((s: any) => s.questions)
+  const subjectiveQuestions = allQuestions.filter((q: any) => q.type === 'subjective')
+
+  let mcqMaxMarks = 0
+  let totalTestMaxMarks = 0
+  for (const q of allQuestions) {
+    totalTestMaxMarks += q.marks || 0
+    if (q.type === 'mcq') mcqMaxMarks += q.marks || 0
+  }
 
   for (const [employeeId] of byEmployee) {
     try {
@@ -120,7 +126,7 @@ export async function POST(request: NextRequest) {
       let totalSubjectiveMax = 0
       let totalSubjectiveEarned = 0
       for (const q of subjectiveQuestions) {
-        totalSubjectiveMax += q.marks || 2
+        totalSubjectiveMax += q.marks || 0
         totalSubjectiveEarned += Number(subjectiveScores[q.id] || 0)
       }
 
@@ -128,28 +134,26 @@ export async function POST(request: NextRequest) {
         ? Math.round((totalSubjectiveEarned / totalSubjectiveMax) * 100)
         : null
 
-      const mcqScore = Number(result.mcq_score || 0)
-      const hasSubjective = subjectiveQuestions.length > 0
+      // Approximate MCQ raw from stored percentage (answer buffer not available here)
+      const mcqPct = Number(result.mcq_score || 0)
+      const mcqRaw = mcqMaxMarks > 0 ? Math.round(mcqPct / 100 * mcqMaxMarks) : 0
 
-      let totalScore: number
-      if (hasSubjective && subjectiveScore !== null) {
-        totalScore = Math.round((mcqScore + subjectiveScore) / 2)
-      } else {
-        totalScore = mcqScore
-      }
-
-      const passFail = totalScore >= passPct ? 'pass' : 'fail'
+      const totalEarned = mcqRaw + totalSubjectiveEarned
+      const passFail = totalTestMaxMarks > 0
+        ? ((totalEarned / totalTestMaxMarks) * 100 >= passPct ? 'pass' : 'fail')
+        : 'fail'
 
       await db.query(
         `UPDATE results SET
            subjective_score = $1,
            total_score = $2,
-           pass_fail = $3,
+           max_score = $3,
+           pass_fail = $4,
            is_finalised = true,
            finalised_at = NOW(),
-           finalised_by = $4
-         WHERE id = $5`,
-        [subjectiveScore, totalScore, passFail, adminId, result.id]
+           finalised_by = $5
+         WHERE id = $6`,
+        [subjectiveScore, totalEarned, totalTestMaxMarks, passFail, adminId, result.id]
       )
 
       finalised++

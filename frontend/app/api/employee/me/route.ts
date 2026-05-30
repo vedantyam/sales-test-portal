@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   if (auth.user!.role !== 'employee') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { rows } = await db.query(
-    'SELECT id, name, email, department, phone FROM employees WHERE id = $1 AND tenant_id IS NULL',
+    'SELECT id, name, email, department, phone, joining_date FROM employees WHERE id = $1 AND tenant_id IS NULL',
     [auth.user!.sub]
   )
   if (!rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })

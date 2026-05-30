@@ -11,8 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const adminId = auth.user!.sub
 
   const { rows } = await db.query(
-    `SELECT r.*, t.pass_score_pct, t.sections,
-            r.part_scores
+    `SELECT r.*, t.pass_score_pct, t.sections
      FROM results r JOIN tests t ON t.id=r.test_id
      WHERE r.id=$1`,
     [params.id]
@@ -26,52 +25,59 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const subjectiveScores: Record<string, number> = result.subjective_scores || {}
   const partScores: Record<string, Array<{ part_id: string; score: number }>> = result.part_scores || {}
 
-  let totalSubjectiveMax = 0
-  let totalSubjectiveEarned = 0
-  let subjectiveCount = 0
+  const { rows: sessionRows } = await db.query(
+    `SELECT answer_buffer FROM test_sessions WHERE assignment_id = $1`,
+    [result.assignment_id]
+  )
+  const answerBuffer: Record<string, any> = sessionRows[0]?.answer_buffer || {}
+
   let totalMaxMarks = 0
+  let totalEarned = 0
+  let subjectiveEarned = 0
+  let subjectiveMax = 0
+  let subjectiveCount = 0
 
   for (const section of sections) {
     for (const q of section.questions) {
-      totalMaxMarks += q.marks || 0
-      if (q.type === 'subjective') {
-        const maxMarks = q.marks || 2
-        totalSubjectiveMax += maxMarks
-        totalSubjectiveEarned += Number(subjectiveScores[q.id] || 0)
+      const qMarks = q.marks || 0
+      totalMaxMarks += qMarks
+
+      if (q.type === 'mcq') {
+        const raw = answerBuffer[q.id]
+        const ans = typeof raw === 'string' ? raw
+          : (raw && typeof raw === 'object' ? (raw.answer ?? null) : null)
+        if (ans === q.correct_answer) totalEarned += qMarks
+      } else if (q.type === 'subjective') {
+        const earned = Number(subjectiveScores[q.id] || 0)
+        totalEarned += earned
+        subjectiveEarned += earned
+        subjectiveMax += qMarks
         subjectiveCount++
       } else if (q.type === 'parts') {
         const qPartScores = partScores[q.id] || []
-        const earned = qPartScores.reduce((sum: number, ps: { part_id: string; score: number }) => sum + Number(ps.score || 0), 0)
-        totalSubjectiveMax += q.marks || 0
-        totalSubjectiveEarned += earned
+        const earned = qPartScores.reduce(
+          (s: number, ps: { part_id: string; score: number }) => s + Number(ps.score || 0), 0
+        )
+        totalEarned += earned
         subjectiveCount++
       }
     }
   }
 
-  const mcqScore = result.mcq_score !== null ? Number(result.mcq_score) : null
-
-  const subjectiveScore = totalSubjectiveMax > 0
-    ? Math.round((totalSubjectiveEarned / totalSubjectiveMax) * 100)
+  const subjectiveScore = subjectiveMax > 0
+    ? Math.round((subjectiveEarned / subjectiveMax) * 100)
     : null
 
-  let totalScore: number
-  if (subjectiveCount > 0 && mcqScore !== null) {
-    totalScore = Math.round((mcqScore + (subjectiveScore || 0)) / 2)
-  } else if (subjectiveCount > 0) {
-    totalScore = subjectiveScore || 0
-  } else {
-    totalScore = mcqScore || 0
-  }
-
-  const passFail = totalScore >= result.pass_score_pct ? 'pass' : 'fail'
+  const passFail = totalMaxMarks > 0
+    ? ((totalEarned / totalMaxMarks) * 100 >= result.pass_score_pct ? 'pass' : 'fail')
+    : 'fail'
 
   await db.query(
     `UPDATE results SET
        subjective_score=$1, total_score=$2, max_score=$3, pass_fail=$4,
        is_finalised=true, finalised_at=NOW(), finalised_by=$5
      WHERE id=$6`,
-    [subjectiveScore, totalScore, totalMaxMarks, passFail, adminId, params.id]
+    [subjectiveScore, totalEarned, totalMaxMarks, passFail, adminId, params.id]
   )
 
   logAudit({
@@ -83,5 +89,5 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     ip_address: request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown',
   })
 
-  return NextResponse.json({ finalised: true, pass_fail: passFail, total_score: totalScore, max_score: totalMaxMarks })
+  return NextResponse.json({ finalised: true, pass_fail: passFail, total_score: totalEarned, max_score: totalMaxMarks })
 }

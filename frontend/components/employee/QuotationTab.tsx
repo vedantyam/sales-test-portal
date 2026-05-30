@@ -335,7 +335,7 @@ export default function QuotationTab() {
     }
   }
 
-  // Derived calculations — all arithmetic in paise to avoid floating point errors
+  // Derived calculations — discount in paise for percent precision
   const machineTotal = machinesCount * machinePrice
   const subTotal = rate + machineTotal
   const gstRate = zeroGst ? 0 : 18
@@ -347,21 +347,27 @@ export default function QuotationTab() {
       : Math.round(discountValue * 100))
     : 0
   const taxableAmountPaise = subTotalPaise - discountAmountPaise
-  const igstPaise = Math.round(taxableAmountPaise * gstRate / 100)
-  const totalPaise = taxableAmountPaise + igstPaise
 
   const discountAmount = discountAmountPaise / 100
   const taxableAmount = taxableAmountPaise / 100
-  const igst = igstPaise / 100
-  const total = totalPaise / 100
+  // GST rounded to whole rupees — consistent with invoice preview
+  const igst = gstRate > 0 ? Math.round(taxableAmount * gstRate / 100) : 0
+  const total = taxableAmount + igst
 
-  // Suggested discount: D = P×G/(100+G) — computed in paise so total === subTotal exactly
-  const suggestedDiscountPaise = gstRate > 0 && subTotalPaise > 0
-    ? Math.round(subTotalPaise * gstRate / (100 + gstRate))
-    : 0
-  const suggestedDiscount = suggestedDiscountPaise / 100
-  // Verification: does current discount make total == subtotal?
-  const totalMatchesSubtotal = gstRate > 0 && discountAmountPaise > 0 && totalPaise === subTotalPaise
+  // Suggested discount: find D (whole rupees) so taxable + round(taxable × gst/100) = subTotal
+  const suggestedDiscount = (() => {
+    if (gstRate === 0 || subTotal === 0) return 0
+    const est = Math.round(subTotal * gstRate / (100 + gstRate))
+    for (let adj = -10; adj <= 10; adj++) {
+      const D = est + adj
+      if (D <= 0 || D >= subTotal) continue
+      const T = subTotal - D
+      if (Math.round(T * gstRate / 100) + T === subTotal) return D
+    }
+    return est
+  })()
+  // Verification: does current discount make invoice total equal original subtotal?
+  const totalMatchesSubtotal = gstRate > 0 && discountAmount > 0 && Math.abs(total - subTotal) < 0.01
 
   function buildAgreementData() {
     return {

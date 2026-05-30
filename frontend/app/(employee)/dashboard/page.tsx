@@ -10,6 +10,7 @@ import Badge from '../../../components/ui/Badge'
 import Button from '../../../components/ui/Button'
 import TrainingTab from '../../../components/employee/TrainingTab'
 import QuotationTab from '../../../components/employee/QuotationTab'
+import ProfileCard from '../../../components/employee/ProfileCard'
 
 const CLOCK_DRIFT_THRESHOLD_MS = 30_000
 
@@ -74,7 +75,7 @@ function ResultPanel({ a }: { a: Assignment }) {
         )}
         {a.total_score != null && (
           <span className="text-sm text-gray-600">
-            Score: <strong>{a.total_score}%</strong>
+            Score: <strong>{a.total_score}{a.max_score != null ? `/${a.max_score}` : '%'}</strong>
           </span>
         )}
       </div>
@@ -91,10 +92,6 @@ function ResultPanel({ a }: { a: Assignment }) {
   )
 }
 
-interface EmployeeProfile {
-  id: string; name: string; email?: string; department: string; phone?: string
-}
-
 function DashboardContent() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
@@ -104,12 +101,7 @@ function DashboardContent() {
   const [, setTick] = useState(0)
   const [openFolders, setOpenFolders] = useState<string[]>([])
   const serverOffsetRef = useRef<number>(0)
-  // Profile modal
   const [showProfile, setShowProfile] = useState(false)
-  const [profile, setProfile] = useState<EmployeeProfile | null>(null)
-  const [profilePhone, setProfilePhone] = useState('')
-  const [profileSaving, setProfileSaving] = useState(false)
-  const [profileMsg, setProfileMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
   function getServerNow(): Date {
     return new Date(Date.now() + serverOffsetRef.current)
@@ -165,30 +157,6 @@ function DashboardContent() {
     router.push('/login')
   }
 
-  function openProfile() {
-    api.get('/employee/me').then((r) => {
-      setProfile(r.data.employee)
-      setProfilePhone(r.data.employee.phone || '')
-    }).catch(() => {})
-    setShowProfile(true)
-    setProfileMsg(null)
-  }
-
-  async function handleSaveProfile() {
-    setProfileSaving(true)
-    setProfileMsg(null)
-    try {
-      await api.patch('/employee/me', { phone: profilePhone })
-      setProfileMsg({ text: 'Saved successfully', ok: true })
-      setProfile((p) => p ? { ...p, phone: profilePhone } : p)
-    } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Save failed'
-      setProfileMsg({ text: msg, ok: false })
-    } finally {
-      setProfileSaving(false)
-    }
-  }
-
   const now = getServerNow()
 
   return (
@@ -201,74 +169,27 @@ function DashboardContent() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={openProfile}
-              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1.5"
+              onClick={() => setShowProfile(true)}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
               title="My Profile"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              Profile
+              <div style={{
+                width: 30, height: 30, borderRadius: '50%',
+                background: '#1a1f2e', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 11, fontWeight: 600,
+                color: 'white', letterSpacing: 1, flexShrink: 0,
+              }}>
+                {(user?.name || '').split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || 'ME'}
+              </div>
+              {user?.name?.split(' ')[0]}
             </button>
             <Button variant="ghost" size="sm" onClick={handleLogout}>Sign Out</Button>
           </div>
         </div>
       </header>
 
-      {/* Profile Modal */}
       {showProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center no-print" style={{ background: 'rgba(0,0,0,0.4)' }}>
-          <div className="bg-white rounded-xl border border-gray-200 shadow-xl p-6 w-full max-w-sm mx-4">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-semibold text-gray-900">My Profile</h3>
-              <button onClick={() => setShowProfile(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Name</p>
-                <p className="text-sm text-gray-900">{profile?.name || user?.name || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Email</p>
-                <p className="text-sm text-gray-900">{profile?.email || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Department</p>
-                <p className="text-sm text-gray-900">{profile?.department || user?.department || '—'}</p>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Phone number</label>
-                <input
-                  type="tel"
-                  value={profilePhone}
-                  onChange={(e) => setProfilePhone(e.target.value)}
-                  placeholder="+91 XXXXX XXXXX"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
-                />
-              </div>
-              {profileMsg && (
-                <p className={`text-xs ${profileMsg.ok ? 'text-green-700' : 'text-red-600'}`}>
-                  {profileMsg.text}
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button
-                onClick={() => setShowProfile(false)}
-                className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-              >
-                Close
-              </button>
-              <button
-                onClick={handleSaveProfile}
-                disabled={profileSaving}
-                className="flex-[2] py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50"
-              >
-                {profileSaving ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ProfileCard onClose={() => setShowProfile(false)} />
       )}
 
       {clockDrift && (
