@@ -1,12 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useAuthStore, hydrate } from '@/store/authStore'
 import dynamic from 'next/dynamic'
+import { adminApi } from '@/lib/api'
 
 const CallLeaderboard = dynamic(() => import('@/components/CallLeaderboard'), { ssr: false })
 
 export default function CallReportPage() {
-  const { accessToken } = useAuthStore()
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [selectedType, setSelectedType] = useState<'1PM' | '6PM'>('6PM')
   const [currentReport, setCurrentReport] = useState<any>(null)
@@ -16,24 +15,16 @@ export default function CallReportPage() {
   const [testingSample, setTestingSample] = useState(false)
 
   useEffect(() => {
-    const stored = hydrate()
-    if (stored) useAuthStore.getState().setAuth('', stored)
-  }, [])
-
-  useEffect(() => {
-    if (!accessToken) return
     fetchReport()
-  }, [selectedDate, selectedType, accessToken])
+  }, [selectedDate, selectedType])
 
   async function fetchReport() {
     setLoading(true)
     try {
-      const res = await fetch(
-        `/api/admin/call-reports?date=${selectedDate}&type=${selectedType}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      )
-      const data = await res.json()
-      setCurrentReport(data.report || null)
+      const res = await adminApi.get('/admin/call-reports', {
+        params: { date: selectedDate, type: selectedType },
+      })
+      setCurrentReport(res.data.report || null)
     } catch {
       setCurrentReport(null)
     } finally {
@@ -45,17 +36,13 @@ export default function CallReportPage() {
     if (!currentReport) return
     setSending(true)
     try {
-      const res = await fetch('/api/admin/call-reports/send-slack', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ report_id: currentReport.id }),
+      const res = await adminApi.post('/admin/call-reports/send-slack', {
+        report_id: currentReport.id,
       })
-      const data = await res.json()
-      if (data.success) alert('Sent to Slack successfully!')
-      else alert('Failed to send: ' + data.error)
+      if (res.data.success) alert('Sent to Slack successfully!')
+      else alert('Failed to send: ' + res.data.error)
+    } catch (e: any) {
+      alert('Failed: ' + (e?.response?.data?.error || e.message))
     } finally {
       setSending(false)
     }
@@ -64,20 +51,17 @@ export default function CallReportPage() {
   async function testSampleData() {
     setTestingSample(true)
     try {
-      const res = await fetch('/api/admin/call-reports/test', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ report_type: selectedType, report_date: selectedDate }),
+      const res = await adminApi.post('/admin/call-reports/test', {
+        report_type: selectedType,
+        report_date: selectedDate,
       })
-      const data = await res.json()
-      if (data.success) {
-        setCurrentReport(data.report)
+      if (res.data.success) {
+        setCurrentReport(res.data.report)
       } else {
-        alert('Error: ' + data.error)
+        alert('Error: ' + res.data.error)
       }
+    } catch (e: any) {
+      alert('Error: ' + (e?.response?.data?.error || e.message))
     } finally {
       setTestingSample(false)
     }
@@ -86,16 +70,18 @@ export default function CallReportPage() {
   async function triggerNow() {
     setTriggeringCron(true)
     try {
-      const res = await fetch('/api/cron/call-report', {
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || 'dev'}` }
+      const res = await adminApi.post('/admin/call-reports/test', {
+        report_type: selectedType,
+        report_date: selectedDate,
       })
-      const data = await res.json()
-      if (data.success) {
-        alert(`Report generated! ${data.sales_team_count} sales, ${data.enterprise_team_count} enterprise`)
-        fetchReport()
+      if (res.data.success) {
+        alert(`Report generated! ${res.data.report.sales_team?.length ?? 0} sales, ${res.data.report.enterprise_team?.length ?? 0} enterprise`)
+        setCurrentReport(res.data.report)
       } else {
-        alert('Error: ' + data.error)
+        alert('Error: ' + res.data.error)
       }
+    } catch (e: any) {
+      alert('Error: ' + (e?.response?.data?.error || e.message))
     } finally {
       setTriggeringCron(false)
     }

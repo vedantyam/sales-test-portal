@@ -14,7 +14,8 @@ export function generateSlackBlocks(
   reportType: string,
   reportDate: string
 ) {
-  const date = new Date(reportDate + 'T00:00:00').toLocaleDateString('en-IN', {
+  const dateStr = reportDate.includes('T') ? reportDate.split('T')[0] : reportDate
+  const date = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   })
 
