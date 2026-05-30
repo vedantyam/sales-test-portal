@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/admin/resources', label: 'Resources' },
   { href: '/admin/training', label: 'Training' },
   { href: '/admin/quotations', label: 'Quotations' },
+  { href: '/admin/call-report', label: 'Call Report' },
 ]
 
 interface AdminProfile { id: string; name: string; email: string; phone?: string }

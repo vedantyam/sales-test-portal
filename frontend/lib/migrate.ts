@@ -281,6 +281,22 @@ const statements = [
   // Phase 3: phone numbers for employees and admins
   `ALTER TABLE employees ADD COLUMN IF NOT EXISTS phone TEXT`,
   `ALTER TABLE admins ADD COLUMN IF NOT EXISTS phone TEXT`,
+
+  // Call report leaderboard
+  `CREATE TABLE IF NOT EXISTS call_reports (
+    id SERIAL PRIMARY KEY,
+    report_date DATE NOT NULL,
+    report_type TEXT NOT NULL CHECK (report_type IN ('1PM', '6PM')),
+    sales_team JSONB NOT NULL DEFAULT '[]',
+    enterprise_team JSONB NOT NULL DEFAULT '[]',
+    low_performers JSONB NOT NULL DEFAULT '[]',
+    team_total JSONB NOT NULL DEFAULT '{}',
+    raw_data JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(report_date, report_type)
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_call_reports_date ON call_reports(report_date DESC)`,
 ]
 
 async function doMigrations(): Promise<void> {
