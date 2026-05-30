@@ -66,12 +66,14 @@ export default function CallReportPage() {
     try {
       const res = await fetch('/api/admin/call-reports/test', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ report_type: selectedType, report_date: selectedDate }),
       })
       const data = await res.json()
       if (data.success) {
-        setSelectedDate(data.report.report_date)
-        setSelectedType('6PM')
         setCurrentReport(data.report)
       } else {
         alert('Error: ' + data.error)
