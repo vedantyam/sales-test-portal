@@ -13,6 +13,7 @@ export default function CallReportPage() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [triggeringCron, setTriggeringCron] = useState(false)
+  const [testingSample, setTestingSample] = useState(false)
 
   useEffect(() => {
     const stored = hydrate()
@@ -60,6 +61,26 @@ export default function CallReportPage() {
     }
   }
 
+  async function testSampleData() {
+    setTestingSample(true)
+    try {
+      const res = await fetch('/api/admin/call-reports/test', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSelectedDate(data.report.report_date)
+        setSelectedType('6PM')
+        setCurrentReport(data.report)
+      } else {
+        alert('Error: ' + data.error)
+      }
+    } finally {
+      setTestingSample(false)
+    }
+  }
+
   async function triggerNow() {
     setTriggeringCron(true)
     try {
@@ -90,6 +111,13 @@ export default function CallReportPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={testSampleData}
+            disabled={testingSample}
+            style={{ padding: '7px 16px', border: '1px solid var(--color-border-secondary)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 13 }}
+          >
+            {testingSample ? 'Generating...' : '🧪 Test with Sample Data'}
+          </button>
           <button
             onClick={triggerNow}
             disabled={triggeringCron}
