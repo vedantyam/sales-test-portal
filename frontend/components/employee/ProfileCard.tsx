@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { api } from '@/lib/api'
 
 interface ProfileData {
   name: string
@@ -12,36 +11,53 @@ interface ProfileData {
 }
 
 export default function ProfileCard({ onClose }: { onClose: () => void }) {
-  const user = useAuthStore((s) => s.user)
+  const { user, accessToken } = useAuthStore()
   const [flipped, setFlipped] = useState(false)
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [phone, setPhone] = useState('')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [saveErr, setSaveErr] = useState('')
 
-  const initials = (profile?.name || user?.name || '')
-    .split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'ME'
+  const firstName = (profile?.name || user?.name || '').split(' ')[0]
+  const department = (profile?.department || user?.department || '').toUpperCase()
+
+  const memberYear = profile?.joining_date
+    ? new Date(profile.joining_date).getFullYear()
+    : null
 
   useEffect(() => {
-    api.get('/employee/me').then((r) => {
-      setProfile(r.data.employee)
-      setPhone(r.data.employee.phone || '')
-    }).catch(() => {})
-  }, [])
+    if (!accessToken) return
+    fetch('/api/employee/me', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.employee) {
+          setProfile(d.employee)
+          setPhone(d.employee.phone || '')
+        }
+      })
+      .catch(() => {})
+  }, [accessToken])
 
   async function savePhone() {
     setSaving(true)
-    setSaveErr('')
     try {
-      await api.patch('/employee/me', { phone })
-      setProfile((p) => p ? { ...p, phone } : p)
-      setSaved(true)
-      setEditing(false)
-      setTimeout(() => setSaved(false), 2000)
-    } catch (e: any) {
-      setSaveErr(e?.response?.data?.error || 'Save failed')
+      const res = await fetch('/api/employee/me', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ phone }),
+      })
+      if (res.ok) {
+        setProfile(p => p ? { ...p, phone } : p)
+        setSaved(true)
+        setEditing(false)
+        setTimeout(() => setSaved(false), 2000)
+      }
     } finally {
       setSaving(false)
     }
@@ -50,167 +66,353 @@ export default function ProfileCard({ onClose }: { onClose: () => void }) {
   return (
     <>
       <style>{`
-        .pc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px)}
-        .pc-scene{width:320px;height:480px;perspective:1000px;cursor:pointer}
-        .pc-inner{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform .65s cubic-bezier(.4,.2,.2,1)}
-        .pc-inner.flipped{transform:rotateY(180deg)}
-        .pc-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:20px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,.5)}
-        .pc-front{background:#1a1f2e}
-        .pc-back{background:#252b3b;transform:rotateY(180deg)}
-        .pc-shine{position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.04) 50%,rgba(255,255,255,0) 100%);pointer-events:none;animation:pcShimmer 3s ease-in-out infinite}
-        @keyframes pcShimmer{0%,100%{opacity:0;transform:translateX(-100%)}50%{opacity:1;transform:translateX(100%)}}
-        .pc-hint{position:absolute;bottom:12px;right:16px;font-size:11px;color:rgba(255,255,255,.3);letter-spacing:.05em}
-        .pc-avatar{width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:white;margin:0 auto 16px;letter-spacing:1px}
-        .pc-dept{display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.8);font-size:12px;padding:4px 14px;border-radius:20px;letter-spacing:.04em}
-        .pc-accent{width:40px;height:3px;background:#3b5bdb;border-radius:2px;margin:12px auto}
-        .pc-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.07)}
-        .pc-icon{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-        .pc-lbl{font-size:11px;color:rgba(255,255,255,.38);margin-bottom:2px}
-        .pc-val{font-size:14px;color:rgba(255,255,255,.85);font-weight:500}
-        .pc-phone-input{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:8px;color:white;font-size:14px;padding:6px 10px;width:100%;outline:none}
-        .pc-save-btn{background:#3b5bdb;border:none;border-radius:8px;color:white;font-size:13px;padding:6px 16px;cursor:pointer;margin-top:6px;width:100%;font-weight:500}
-        .pc-save-btn:disabled{opacity:.6;cursor:not-allowed}
-        .pc-logo{font-size:13px;font-weight:600;color:rgba(255,255,255,.9);letter-spacing:.05em}
-        .pc-close{position:fixed;top:20px;right:20px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;z-index:1001;line-height:1}
-        .pc-edit-btn{background:rgba(59,91,219,.25);border:1px solid rgba(59,91,219,.4);color:rgba(255,255,255,.7);font-size:11px;padding:2px 8px;border-radius:6px;cursor:pointer}
+        .id-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(10, 15, 40, 0.88);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          backdrop-filter: blur(8px);
+        }
+        .id-close {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.1);
+          border: 1px solid rgba(255,255,255,0.2);
+          color: white;
+          font-size: 20px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1001;
+          line-height: 1;
+        }
+        .id-scene {
+          width: 340px;
+          height: 520px;
+          perspective: 1200px;
+          cursor: pointer;
+          user-select: none;
+        }
+        .id-inner {
+          width: 100%;
+          height: 100%;
+          position: relative;
+          transform-style: preserve-3d;
+          transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
+          border-radius: 20px;
+          box-shadow: 0 30px 60px rgba(0, 0, 20, 0.55);
+        }
+        .id-inner.flipped { transform: rotateY(180deg); }
+        .id-face {
+          position: absolute;
+          inset: 0;
+          backface-visibility: hidden;
+          border-radius: 20px;
+          overflow: hidden;
+        }
+        .id-back-face { transform: rotateY(180deg); }
+
+        .card-bg {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(145deg, #1a2a6c 0%, #2545b8 45%, #3b5bdb 100%);
+        }
+        .deco-circle-1 {
+          position: absolute;
+          width: 280px; height: 280px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.06);
+          top: -70px; right: -70px;
+          pointer-events: none;
+        }
+        .deco-circle-2 {
+          position: absolute;
+          width: 160px; height: 160px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.04);
+          bottom: 30px; left: -55px;
+          pointer-events: none;
+        }
+
+        /* Front */
+        .front-top-bar {
+          position: relative; z-index: 2;
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 20px 22px 12px;
+        }
+        .top-label {
+          font-size: 10px; letter-spacing: 0.17em;
+          color: rgba(255,255,255,0.45); font-weight: 600;
+        }
+        .front-hero {
+          position: relative; z-index: 2;
+          height: 185px; overflow: hidden;
+        }
+        .hero-art {
+          width: 100%; height: 100%;
+          background: linear-gradient(135deg, #1a2a6c 0%, #2040a0 50%, #4060d0 100%);
+          display: flex; align-items: center; justify-content: center;
+          position: relative;
+        }
+        .hero-grid {
+          position: absolute; inset: 0;
+          background-image:
+            linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px);
+          background-size: 28px 28px;
+        }
+        .hero-glow {
+          position: absolute;
+          width: 220px; height: 220px; border-radius: 50%;
+          background: radial-gradient(circle, rgba(100,140,255,0.28) 0%, transparent 70%);
+          top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        .hero-icon-box {
+          position: relative; z-index: 1;
+          width: 58px; height: 58px;
+          border: 2px solid rgba(255,255,255,0.18);
+          border-radius: 14px;
+          background: rgba(255,255,255,0.1);
+          backdrop-filter: blur(4px);
+          display: flex; align-items: center; justify-content: center;
+        }
+        .front-divider {
+          position: relative; z-index: 2;
+          height: 1px; background: rgba(255,255,255,0.14);
+          margin: 0 22px;
+        }
+        .front-content {
+          position: relative; z-index: 2;
+          padding: 18px 22px 10px;
+          text-align: center; flex: 1;
+        }
+        .front-name {
+          font-family: Georgia, 'Times New Roman', serif;
+          font-size: 36px; font-weight: normal;
+          color: white; letter-spacing: -0.5px;
+          margin-bottom: 10px; line-height: 1.1;
+        }
+        .front-tagline {
+          font-size: 11px; color: rgba(255,255,255,0.5);
+          line-height: 1.55; margin-bottom: 12px;
+          padding: 0 8px;
+        }
+        .front-dept {
+          font-size: 11px; letter-spacing: 0.22em;
+          color: rgba(255,255,255,0.4); font-weight: 600;
+        }
+        .front-bottom {
+          position: relative; z-index: 2;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 12px 22px 18px;
+          border-top: 1px solid rgba(255,255,255,0.09);
+        }
+        .flabs-logo-row {
+          display: flex; align-items: center; gap: 7px;
+        }
+        .flabs-icon-box {
+          width: 26px; height: 26px;
+          background: white; border-radius: 6px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 13px; font-weight: 700; color: #1a2a6c;
+        }
+        .flabs-name { font-size: 14px; font-weight: 600; color: white; }
+        .front-br { text-align: right; }
+        .portal-label {
+          font-size: 9px; letter-spacing: 0.17em;
+          color: rgba(255,255,255,0.3); line-height: 1.4;
+        }
+        .tap-hint { font-size: 10px; color: rgba(255,255,255,0.25); margin-top: 3px; }
+
+        /* Back */
+        .back-content {
+          position: relative; z-index: 2;
+          padding: 22px; display: flex;
+          flex-direction: column; height: 100%; box-sizing: border-box;
+        }
+        .back-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+        .back-title {
+          font-family: Georgia, 'Times New Roman', serif;
+          font-size: 26px; color: white; font-weight: normal;
+          margin-bottom: 8px;
+        }
+        .back-divider { height: 1px; background: rgba(255,255,255,0.13); margin-bottom: 18px; }
+        .back-fields { flex: 1; display: flex; flex-direction: column; }
+        .back-field {
+          padding: 11px 0;
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .back-field:last-child { border-bottom: none; }
+        .back-lbl {
+          font-size: 10px; letter-spacing: 0.16em;
+          color: rgba(255,255,255,0.33); margin-bottom: 4px; font-weight: 600;
+        }
+        .back-val { font-size: 15px; color: white; }
+        .back-val.muted { color: rgba(255,255,255,0.4); }
+        .ph-row { display: flex; align-items: center; gap: 8px; }
+        .ph-edit-btn {
+          font-size: 11px; background: rgba(255,255,255,0.1);
+          border: 1px solid rgba(255,255,255,0.2);
+          color: rgba(255,255,255,0.65); padding: 3px 9px;
+          border-radius: 6px; cursor: pointer;
+        }
+        .ph-input {
+          background: rgba(255,255,255,0.1);
+          border: 1px solid rgba(255,255,255,0.22);
+          color: white; font-size: 13px;
+          padding: 5px 9px; border-radius: 6px;
+          outline: none; width: 145px;
+        }
+        .ph-save-btn {
+          background: rgba(59,91,219,0.5);
+          border: 1px solid rgba(59,91,219,0.8);
+          color: white; font-size: 12px;
+          padding: 5px 12px; border-radius: 6px; cursor: pointer;
+        }
+        .back-bottom {
+          display: flex; justify-content: space-between; align-items: center;
+          padding-top: 12px;
+          border-top: 1px solid rgba(255,255,255,0.08);
+          margin-top: 6px;
+        }
+        .back-company { font-size: 10px; color: rgba(255,255,255,0.22); }
+        .back-tap { font-size: 10px; color: rgba(255,255,255,0.22); }
       `}</style>
 
-      <div className="pc-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-        <button className="pc-close" onClick={onClose} aria-label="Close">×</button>
+      <div className="id-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+        <button className="id-close" onClick={onClose} aria-label="Close">×</button>
 
-        <div className="pc-scene" onClick={() => setFlipped((f) => !f)}>
-          <div className={`pc-inner${flipped ? ' flipped' : ''}`}>
+        <div className="id-scene" onClick={() => setFlipped(f => !f)}>
+          <div className={`id-inner${flipped ? ' flipped' : ''}`}>
 
             {/* FRONT */}
-            <div className="pc-face pc-front">
-              <div className="pc-shine" />
-              <div style={{ padding: '28px 24px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-                  <span className="pc-logo">⚡ flabs</span>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,.3)', letterSpacing: '.1em' }}>SALES PORTAL</span>
+            <div className="id-face">
+              <div className="card-bg" />
+              <div className="deco-circle-1" />
+              <div className="deco-circle-2" />
+              <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div className="front-top-bar">
+                  <span className="top-label">SALES TEAM</span>
+                  <span className="top-label">#001</span>
                 </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <div className="pc-avatar">{initials}</div>
-                  <div className="pc-accent" />
-                  <div style={{ fontSize: 21, fontWeight: 500, color: 'white', textAlign: 'center', marginBottom: 10, lineHeight: 1.2 }}>
-                    {profile?.name || user?.name || '…'}
-                  </div>
-                  <span className="pc-dept">{profile?.department || user?.department || '—'}</span>
-                </div>
-                <div style={{ textAlign: 'center', marginTop: 24 }}>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.28)', letterSpacing: '.08em', marginBottom: 3 }}>
-                    SALES TEAM MEMBER
-                  </div>
-                  {profile?.joining_date && (
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)' }}>
-                      Since {new Date(profile.joining_date).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+
+                <div className="front-hero">
+                  <div className="hero-art">
+                    <div className="hero-grid" />
+                    <div className="hero-glow" />
+                    <div className="hero-icon-box">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="1.5">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9,22 9,12 15,12 15,22"/>
+                      </svg>
                     </div>
-                  )}
+                  </div>
+                </div>
+
+                <div className="front-divider" />
+
+                <div className="front-content">
+                  <div className="front-name">{firstName || '…'}</div>
+                  <div className="front-tagline">
+                    You're officially part of the team making diagnostic labs future-ready.
+                  </div>
+                  <div className="front-dept">{department || 'TEAM MEMBER'}</div>
+                </div>
+
+                <div className="front-bottom">
+                  <div className="flabs-logo-row">
+                    <div className="flabs-icon-box">⚡</div>
+                    <span className="flabs-name">flabs</span>
+                  </div>
+                  <div className="front-br">
+                    <div className="portal-label">SALES<br />PORTAL</div>
+                    <div className="tap-hint">tap to flip →</div>
+                  </div>
                 </div>
               </div>
-              <div className="pc-hint">tap to flip →</div>
             </div>
 
             {/* BACK */}
-            <div className="pc-face pc-back">
-              <div style={{ padding: '28px 24px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ marginBottom: 20 }}>
-                  <span className="pc-logo">⚡ flabs</span>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,.38)', marginTop: 4 }}>Profile details</div>
+            <div className="id-face id-back-face">
+              <div className="card-bg" />
+              <div className="deco-circle-1" />
+              <div className="deco-circle-2" />
+              <div className="back-content">
+                <div className="back-hdr">
+                  <div className="flabs-icon-box">⚡</div>
+                  <span className="flabs-name">flabs</span>
                 </div>
-                <div style={{ flex: 1 }}>
-                  {/* Email */}
-                  <div className="pc-row">
-                    <div className="pc-icon">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth="2">
-                        <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-                      </svg>
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="pc-lbl">Email</div>
-                      <div className="pc-val" style={{ fontSize: 12, wordBreak: 'break-all' }}>{profile?.email || '—'}</div>
-                    </div>
+                <div className="back-title">Profile details</div>
+                <div className="back-divider" />
+
+                <div className="back-fields">
+                  <div className="back-field">
+                    <div className="back-lbl">EMAIL</div>
+                    <div className="back-val">{profile?.email || user?.email || '—'}</div>
                   </div>
-                  {/* Phone */}
-                  <div className="pc-row">
-                    <div className="pc-icon">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth="2">
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.64 12 19.79 19.79 0 0 1 1.59 3.18 2 2 0 0 1 3.56 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.54a16 16 0 0 0 7.55 7.55l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-                      </svg>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div className="pc-lbl">Phone</div>
-                      {editing ? (
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <input
-                            className="pc-phone-input"
-                            type="tel"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            placeholder="+91 XXXXX XXXXX"
-                            autoFocus
-                          />
-                          {saveErr && <div style={{ fontSize: 11, color: '#f87171', marginTop: 4 }}>{saveErr}</div>}
-                          <button className="pc-save-btn" onClick={savePhone} disabled={saving}>
-                            {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span className="pc-val">{profile?.phone || 'Not set'}</span>
-                          <button
-                            className="pc-edit-btn"
-                            onClick={(e) => { e.stopPropagation(); setEditing(true) }}
-                          >
-                            {profile?.phone ? 'Edit' : 'Add'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {/* Department */}
-                  <div className="pc-row">
-                    <div className="pc-icon">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth="2">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="pc-lbl">Department</div>
-                      <div className="pc-val">{profile?.department || '—'}</div>
-                    </div>
-                  </div>
-                  {/* Member since */}
-                  <div className="pc-row" style={{ borderBottom: 'none' }}>
-                    <div className="pc-icon">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="pc-lbl">Member since</div>
-                      <div className="pc-val">
-                        {profile?.joining_date
-                          ? new Date(profile.joining_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
-                          : '—'}
+
+                  <div className="back-field">
+                    <div className="back-lbl">PHONE</div>
+                    {editing ? (
+                      <div className="ph-row" onClick={e => e.stopPropagation()}>
+                        <input
+                          className="ph-input"
+                          type="tel"
+                          value={phone}
+                          onChange={e => setPhone(e.target.value)}
+                          placeholder="+91 XXXXX XXXXX"
+                          autoFocus
+                        />
+                        <button className="ph-save-btn" onClick={savePhone} disabled={saving}>
+                          {saving ? '…' : saved ? '✓' : 'Save'}
+                        </button>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="ph-row">
+                        <span className={`back-val${!profile?.phone ? ' muted' : ''}`}>
+                          {profile?.phone || 'Not set'}
+                        </span>
+                        <button
+                          className="ph-edit-btn"
+                          onClick={e => { e.stopPropagation(); setEditing(true) }}
+                        >
+                          {profile?.phone ? 'Edit' : 'Add'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="back-field">
+                    <div className="back-lbl">DEPARTMENT</div>
+                    <div className="back-val">{profile?.department || user?.department || '—'}</div>
+                  </div>
+
+                  <div className="back-field">
+                    <div className="back-lbl">MEMBER SINCE</div>
+                    <div className="back-val">{memberYear ?? '—'}</div>
                   </div>
                 </div>
-                <div style={{ textAlign: 'center', marginTop: 16 }}>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.18)', letterSpacing: '.04em' }}>
-                    ⚡ flabs · diagnoshuttle private limited
-                  </div>
+
+                <div className="back-bottom">
+                  <div className="back-company">flabs · diagnoShuttle private limited</div>
+                  <div className="back-tap">← tap to flip</div>
                 </div>
               </div>
-              <div className="pc-hint">← tap to flip</div>
             </div>
 
           </div>
         </div>
 
-        <div style={{ marginTop: 16, textAlign: 'center', color: 'rgba(255,255,255,.28)', fontSize: 12 }}>
-          click card to flip
+        <div style={{ marginTop: 14, textAlign: 'center', color: 'rgba(255,255,255,0.22)', fontSize: 11, letterSpacing: '0.06em' }}>
+          CLICK CARD TO FLIP
         </div>
       </div>
     </>

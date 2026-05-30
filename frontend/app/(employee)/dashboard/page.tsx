@@ -11,6 +11,7 @@ import Button from '../../../components/ui/Button'
 import TrainingTab from '../../../components/employee/TrainingTab'
 import QuotationTab from '../../../components/employee/QuotationTab'
 import ProfileCard from '../../../components/employee/ProfileCard'
+import PlanComparison from '../../../components/employee/PlanComparison'
 
 const CLOCK_DRIFT_THRESHOLD_MS = 30_000
 
@@ -102,6 +103,7 @@ function DashboardContent() {
   const [openFolders, setOpenFolders] = useState<string[]>([])
   const serverOffsetRef = useRef<number>(0)
   const [showProfile, setShowProfile] = useState(false)
+  const [showPlanComparison, setShowPlanComparison] = useState(false)
 
   function getServerNow(): Date {
     return new Date(Date.now() + serverOffsetRef.current)
@@ -190,6 +192,9 @@ function DashboardContent() {
 
       {showProfile && (
         <ProfileCard onClose={() => setShowProfile(false)} />
+      )}
+      {showPlanComparison && (
+        <PlanComparison onClose={() => setShowPlanComparison(false)} />
       )}
 
       {clockDrift && (
@@ -285,6 +290,18 @@ function DashboardContent() {
 
         {tab === 'resources' && (
           <div>
+            {/* Plan comparison card */}
+            <div
+              onClick={() => setShowPlanComparison(true)}
+              className="flex items-center justify-between border border-gray-200 rounded-xl px-5 py-4 mb-4 cursor-pointer bg-white hover:bg-gray-50 transition-colors"
+            >
+              <div>
+                <div className="text-sm font-medium text-gray-900 mb-0.5">📊 Plan Comparison Guide</div>
+                <div className="text-xs text-gray-500">Compare all plans, edit prices, and download PDF for clients</div>
+              </div>
+              <div className="text-sm text-gray-400 flex-shrink-0 ml-4">View →</div>
+            </div>
+
             {loadingResources && <div className="text-center py-16 text-gray-400">Loading...</div>}
             {!loadingResources && (!resourceData || (resourceData.folders.length === 0 && resourceData.uncategorized.length === 0)) && (
               <div className="text-center py-16">
